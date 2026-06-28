@@ -51,6 +51,8 @@ import {
   disable as userDisable,
   index as userIndex,
   login,
+  logout,
+  me,
   show as userShow,
   store as userStore,
   update as userUpdate,
@@ -183,6 +185,18 @@ router.delete(
     params: uuidParamSchema,
   }),
   asyncHandler(userDestroy),
+);
+
+router.post(
+  "/logout",
+  authMiddleware,
+  asyncHandler(logout),
+);
+
+router.get(
+  "/me",
+  authMiddleware,
+  asyncHandler(me),
 );
 
 /* =========================
@@ -565,9 +579,7 @@ router.get(
   validateRequest({
     query: restaurantIdQuerySchema,
   }),
-  asyncHandler((req, res) =>
-    dashboardController.getRecentProducts(req, res),
-  ),
+  asyncHandler((req, res) => dashboardController.getRecentProducts(req, res)),
 );
 
 export default router;

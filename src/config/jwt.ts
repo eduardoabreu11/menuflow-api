@@ -1,7 +1,12 @@
 // src/config/jwt.ts
 
 import jwt from "jsonwebtoken";
-import type { Request, Response, NextFunction } from "express";
+import type {
+  CookieOptions,
+  Request,
+  Response,
+  NextFunction,
+} from "express";
 
 const jwtSecretFromEnv = process.env.JWT_SECRET;
 
@@ -17,6 +22,25 @@ const jwtAudience = process.env.JWT_AUDIENCE || "cardapio-web";
 const jwtExpiresIn = (process.env.JWT_EXPIRES_IN || "15m") as NonNullable<
   jwt.SignOptions["expiresIn"]
 >;
+
+const isProduction = process.env.NODE_ENV === "production";
+
+export const AUTH_COOKIE_NAME = "menuflow_token";
+
+export const authCookieOptions: CookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  path: "/",
+  maxAge: 15 * 60 * 1000,
+};
+
+export const clearAuthCookieOptions: CookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  path: "/",
+};
 
 export type UserRole = "MASTER" | "RESTAURANT_OWNER" | "RESTAURANT_STAFF";
 
@@ -82,25 +106,57 @@ export function verifyToken(token: string): AuthUser {
   };
 }
 
+function getTokenFromRequest(req: Request) {
+  const authHeader = req.headers.authorization;
+
+  if (authHeader) {
+    const [type, token] = authHeader.split(" ");
+
+    if (type !== "Bearer" || !token) {
+      return {
+        error: "malformed",
+        token: undefined,
+      };
+    }
+
+    return {
+      error: null,
+      token,
+    };
+  }
+
+  const cookieToken = req.cookies?.[AUTH_COOKIE_NAME];
+
+  if (typeof cookieToken === "string" && cookieToken.length > 0) {
+    return {
+      error: null,
+      token: cookieToken,
+    };
+  }
+
+  return {
+    error: "missing",
+    token: undefined,
+  };
+}
+
 export function authMiddleware(
   req: Request,
   res: Response,
   next: NextFunction,
 ) {
   try {
-    const authHeader = req.headers.authorization;
+    const { error, token } = getTokenFromRequest(req);
 
-    if (!authHeader) {
+    if (error === "malformed") {
       return res.status(401).json({
-        message: "Token não informado",
+        message: "Token mal formatado",
       });
     }
 
-    const [type, token] = authHeader.split(" ");
-
-    if (type !== "Bearer" || !token) {
+    if (error === "missing" || !token) {
       return res.status(401).json({
-        message: "Token mal formatado",
+        message: "Token não informado",
       });
     }
 

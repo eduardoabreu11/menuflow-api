@@ -11,6 +11,12 @@ import {
   updateUser,
 } from "../services/userService.js";
 
+import {
+  AUTH_COOKIE_NAME,
+  authCookieOptions,
+  clearAuthCookieOptions,
+} from "../config/jwt.js";
+
 import { AppError } from "../utils/AppError.js";
 
 export async function login(req: Request, res: Response) {
@@ -21,7 +27,27 @@ export async function login(req: Request, res: Response) {
     password,
   });
 
+  res.cookie(AUTH_COOKIE_NAME, result.token, authCookieOptions);
+
   return res.json(result);
+}
+
+export async function logout(req: Request, res: Response) {
+  res.clearCookie(AUTH_COOKIE_NAME, clearAuthCookieOptions);
+
+  return res.json({
+    message: "Logout realizado com sucesso",
+  });
+}
+
+export async function me(req: Request, res: Response) {
+  if (!req.user) {
+    throw new AppError("Usuário não autenticado", 401);
+  }
+
+  const user = await getUserById(req.user.id);
+
+  return res.json(user);
 }
 
 export async function index(req: Request, res: Response) {
