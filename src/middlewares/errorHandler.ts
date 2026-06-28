@@ -1,53 +1,47 @@
 import type { Request, Response, NextFunction } from "express";
 
-type AppError = Error & {
-  status?: number;
-  type?: string;
-  body?: unknown;
+import { AppError } from "../utils/AppError.js";
 
+type PostgreSQLError = Error & {
   code?: string;
   constraint?: string;
-  detail?: string;
 };
 
-function getUniqueViolationMessage(error: AppError) {
-  switch (error.constraint) {
-    case "users_email_unique_lower_idx":
-      return "Já existe um usuário com esse e-mail";
-
-    case "restaurants_slug_unique_lower_idx":
-      return "Já existe um restaurante com esse slug";
-
-    case "plans_name_unique_lower_idx":
-      return "Já existe um plano com esse nome";
-
-    case "categories_restaurant_name_unique_lower_idx":
-      return "Já existe uma categoria com esse nome neste restaurante";
-
-    case "products_restaurant_category_name_unique_lower_idx":
-      return "Já existe um produto com esse nome nesta categoria";
-
-    case "banners_restaurant_image_url_unique_idx":
-      return "Já existe um banner com essa imagem neste restaurante";
-
-    default:
-      return "Já existe um registro com essas informações";
-  }
-}
+type OperationalError = Error & {
+  statusCode?: number;
+  isOperational?: boolean;
+};
 
 export function errorHandler(
-  error: AppError,
+  error: Error,
   req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ) {
-  if (
-    error instanceof SyntaxError &&
-    error.status === 400 &&
-    "body" in error
-  ) {
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  if (error instanceof SyntaxError && "body" in error) {
     return res.status(400).json({
       message: "JSON inválido",
+    });
+  }
+
+  if (error instanceof AppError) {
+    return res.status(error.statusCode).json({
+      message: error.message,
+    });
+  }
+
+  const operationalError = error as OperationalError;
+
+  if (
+    operationalError.isOperational === true &&
+    typeof operationalError.statusCode === "number"
+  ) {
+    return res.status(operationalError.statusCode).json({
+      message: operationalError.message,
     });
   }
 
@@ -57,15 +51,31 @@ export function errorHandler(
     });
   }
 
-  if (error.code === "23505") {
-    console.error("Erro de duplicidade no PostgreSQL:", {
-      code: error.code,
-      constraint: error.constraint,
-      detail: error.detail,
-    });
+  const postgresError = error as PostgreSQLError;
+
+  if (postgresError.code === "23505") {
+    const duplicatedMessages: Record<string, string> = {
+      users_email_key: "E-mail já cadastrado",
+      users_email_unique_lower_idx: "E-mail já cadastrado",
+      restaurants_slug_key: "Slug já cadastrado",
+      restaurants_slug_unique_lower_idx: "Slug já cadastrado",
+      plans_name_unique_lower_idx: "Nome do plano já cadastrado",
+      categories_restaurant_name_unique_lower_idx:
+        "Categoria já cadastrada neste restaurante",
+      products_restaurant_category_name_unique_lower_idx:
+        "Produto já cadastrado nesta categoria",
+      banners_restaurant_image_url_unique_idx:
+        "Banner já cadastrado neste restaurante",
+    };
+
+    const message =
+      postgresError.constraint &&
+      duplicatedMessages[postgresError.constraint]
+        ? duplicatedMessages[postgresError.constraint]
+        : "Registro duplicado";
 
     return res.status(400).json({
-      message: getUniqueViolationMessage(error),
+      message,
     });
   }
 
