@@ -31,6 +31,11 @@ import {
 } from "../validations/commonValidation.js";
 
 import {
+  createUserBodySchema,
+  updateUserBodySchema,
+} from "../validations/userValidation.js";
+
+import {
   createPlanBodySchema,
   updatePlanBodySchema,
 } from "../validations/planValidation.js";
@@ -41,9 +46,14 @@ import {
 } from "../validations/restaurantValidation.js";
 
 import {
+  activate as userActivate,
+  destroy as userDestroy,
+  disable as userDisable,
   index as userIndex,
   login,
   show as userShow,
+  store as userStore,
+  update as userUpdate,
 } from "../controllers/userController.js";
 
 import {
@@ -122,6 +132,57 @@ router.get(
     params: uuidParamSchema,
   }),
   asyncHandler(userShow),
+);
+
+router.post(
+  "/users",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    body: createUserBodySchema,
+  }),
+  asyncHandler(userStore),
+);
+
+router.patch(
+  "/users/:id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: uuidParamSchema,
+    body: updateUserBodySchema,
+  }),
+  asyncHandler(userUpdate),
+);
+
+router.patch(
+  "/users/:id/activate",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: uuidParamSchema,
+  }),
+  asyncHandler(userActivate),
+);
+
+router.patch(
+  "/users/:id/disable",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: uuidParamSchema,
+  }),
+  asyncHandler(userDisable),
+);
+
+router.delete(
+  "/users/:id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: uuidParamSchema,
+  }),
+  asyncHandler(userDestroy),
 );
 
 /* =========================
