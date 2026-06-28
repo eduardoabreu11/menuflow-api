@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
+
 import { BannerService } from "../services/bannerService.js";
+import { AppError } from "../utils/AppError.js";
 
 const bannerService = new BannerService();
 
@@ -22,34 +24,36 @@ function getStatusCode(error: unknown) {
   return 400;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export class BannerController {
   async create(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const banner = await bannerService.create(req.body, req.user);
 
       return res.status(201).json(banner);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao criar banner",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao criar banner"),
+        getStatusCode(error),
+      );
     }
   }
 
   async findAll(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const { restaurant_id } = req.query;
@@ -67,21 +71,21 @@ export class BannerController {
 
       return res.json(banners);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao listar banners",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao listar banners"),
+        getStatusCode(error),
+      );
     }
   }
 
   async findById(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const banner = await bannerService.findById(
@@ -91,21 +95,21 @@ export class BannerController {
 
       return res.json(banner);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao buscar banner",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao buscar banner"),
+        getStatusCode(error),
+      );
     }
   }
 
   async update(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const banner = await bannerService.update(
@@ -116,21 +120,21 @@ export class BannerController {
 
       return res.json(banner);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao atualizar banner",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao atualizar banner"),
+        getStatusCode(error),
+      );
     }
   }
 
   async activate(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const banner = await bannerService.activate(
@@ -140,21 +144,21 @@ export class BannerController {
 
       return res.json(banner);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao ativar banner",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao ativar banner"),
+        getStatusCode(error),
+      );
     }
   }
 
   async disable(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const banner = await bannerService.disable(
@@ -164,21 +168,21 @@ export class BannerController {
 
       return res.json(banner);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao desativar banner",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao desativar banner"),
+        getStatusCode(error),
+      );
     }
   }
 
   async delete(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const result = await bannerService.delete(
@@ -188,12 +192,14 @@ export class BannerController {
 
       return res.json(result);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao deletar banner",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao deletar banner"),
+        getStatusCode(error),
+      );
     }
   }
 }

@@ -6,10 +6,12 @@ import {
   loginUser,
 } from "../services/userService.js";
 
-export async function login(req: Request, res: Response) {
-  try {
-    const { email, password } = req.body;
+import { AppError } from "../utils/AppError.js";
 
+export async function login(req: Request, res: Response) {
+  const { email, password } = req.body;
+
+  try {
     const result = await loginUser({
       email,
       password,
@@ -17,12 +19,12 @@ export async function login(req: Request, res: Response) {
 
     return res.json(result);
   } catch (error) {
-    return res.status(401).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Erro ao realizar login",
-    });
+    throw new AppError(
+      error instanceof Error
+        ? error.message
+        : "Erro ao realizar login",
+      401,
+    );
   }
 }
 
@@ -36,9 +38,7 @@ export async function show(req: Request, res: Response) {
   const id = req.params.id;
 
   if (!id || Array.isArray(id)) {
-    return res.status(400).json({
-      message: "ID inválido",
-    });
+    throw new AppError("ID inválido", 400);
   }
 
   const user = await getUserById(id);

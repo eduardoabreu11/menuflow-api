@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
+
 import { ProductService } from "../services/productService.js";
+import { AppError } from "../utils/AppError.js";
 
 const productService = new ProductService();
 
@@ -22,34 +24,36 @@ function getStatusCode(error: unknown) {
   return 400;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export class ProductController {
   async create(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const product = await productService.create(req.body, req.user);
 
       return res.status(201).json(product);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao criar produto",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao criar produto"),
+        getStatusCode(error),
+      );
     }
   }
 
   async findAll(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const { restaurant_id, category_id } = req.query;
@@ -76,21 +80,21 @@ export class ProductController {
 
       return res.json(products);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao listar produtos",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao listar produtos"),
+        getStatusCode(error),
+      );
     }
   }
 
   async findById(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const product = await productService.findById(
@@ -100,21 +104,21 @@ export class ProductController {
 
       return res.json(product);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao buscar produto",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao buscar produto"),
+        getStatusCode(error),
+      );
     }
   }
 
   async update(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const product = await productService.update(
@@ -125,21 +129,21 @@ export class ProductController {
 
       return res.json(product);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao atualizar produto",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao atualizar produto"),
+        getStatusCode(error),
+      );
     }
   }
 
   async activate(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const product = await productService.activate(
@@ -149,21 +153,21 @@ export class ProductController {
 
       return res.json(product);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao ativar produto",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao ativar produto"),
+        getStatusCode(error),
+      );
     }
   }
 
   async disable(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const product = await productService.disable(
@@ -173,21 +177,21 @@ export class ProductController {
 
       return res.json(product);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao desativar produto",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao desativar produto"),
+        getStatusCode(error),
+      );
     }
   }
 
   async delete(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const result = await productService.delete(
@@ -197,12 +201,14 @@ export class ProductController {
 
       return res.json(result);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao deletar produto",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao deletar produto"),
+        getStatusCode(error),
+      );
     }
   }
 }

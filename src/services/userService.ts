@@ -6,7 +6,7 @@ import {
   listUsers,
 } from "../repositories/userRepository.js";
 
-import { generateToken } from "../config/jwt.js";
+import { generateToken, type UserRole } from "../config/jwt.js";
 
 type LoginData = {
   email: string;
@@ -42,7 +42,7 @@ export async function loginUser({ email, password }: LoginData) {
 
   const token = generateToken({
     id: user.id,
-    role: user.role,
+    role: user.role as UserRole,
   });
 
   const { password: _, ...userWithoutPassword } = user;

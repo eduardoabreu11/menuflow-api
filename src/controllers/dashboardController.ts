@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
+
 import { DashboardService } from "../services/dashboardService.js";
+import { AppError } from "../utils/AppError.js";
 
 const dashboardService = new DashboardService();
 
@@ -22,21 +24,21 @@ function getStatusCode(error: unknown) {
   return 400;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export class DashboardController {
   async getRecentProducts(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const { restaurant_id } = req.query;
 
       if (typeof restaurant_id !== "string") {
-        return res.status(400).json({
-          message: "ID do restaurante é obrigatório",
-        });
+        throw new AppError("ID do restaurante é obrigatório", 400);
       }
 
       const products = await dashboardService.getRecentProducts(
@@ -46,29 +48,27 @@ export class DashboardController {
 
       return res.json(products);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao buscar últimos produtos",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao buscar últimos produtos"),
+        getStatusCode(error),
+      );
     }
   }
 
   async getStats(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const { restaurant_id } = req.query;
 
       if (typeof restaurant_id !== "string") {
-        return res.status(400).json({
-          message: "ID do restaurante é obrigatório",
-        });
+        throw new AppError("ID do restaurante é obrigatório", 400);
       }
 
       const stats = await dashboardService.getStats(
@@ -78,12 +78,14 @@ export class DashboardController {
 
       return res.json(stats);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao buscar dados do dashboard",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao buscar dados do dashboard"),
+        getStatusCode(error),
+      );
     }
   }
 }

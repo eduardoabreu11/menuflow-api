@@ -10,6 +10,8 @@ import {
   deleteRestaurantById,
 } from "../services/restaurantService.js";
 
+import { AppError } from "../utils/AppError.js";
+
 function getStatusCode(error: unknown) {
   if (!(error instanceof Error)) {
     return 400;
@@ -29,99 +31,103 @@ function getStatusCode(error: unknown) {
   return 400;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function index(req: Request, res: Response) {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        message: "Usuário não autenticado",
-      });
+      throw new AppError("Usuário não autenticado", 401);
     }
 
     const restaurants = await getAllRestaurants(req.user);
 
     return res.json(restaurants);
   } catch (error) {
-    return res.status(getStatusCode(error)).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Erro ao listar restaurantes",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao listar restaurantes"),
+      getStatusCode(error),
+    );
   }
 }
 
 export async function show(req: Request, res: Response) {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        message: "Usuário não autenticado",
-      });
+      throw new AppError("Usuário não autenticado", 401);
     }
 
     const id = req.params.id;
 
     if (!id || Array.isArray(id)) {
-      return res.status(400).json({
-        message: "ID inválido",
-      });
+      throw new AppError("ID inválido", 400);
     }
 
     const restaurant = await getRestaurantById(id, req.user);
 
     return res.json(restaurant);
   } catch (error) {
-    return res.status(getStatusCode(error)).json({
-      message:
-        error instanceof Error ? error.message : "Restaurante não encontrado",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Restaurante não encontrado"),
+      getStatusCode(error),
+    );
   }
 }
 
 export async function store(req: Request, res: Response) {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        message: "Usuário não autenticado",
-      });
+      throw new AppError("Usuário não autenticado", 401);
     }
 
     const restaurant = await createNewRestaurant(req.body, req.user);
 
     return res.status(201).json(restaurant);
   } catch (error) {
-    return res.status(getStatusCode(error)).json({
-      message:
-        error instanceof Error ? error.message : "Erro ao criar restaurante",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao criar restaurante"),
+      getStatusCode(error),
+    );
   }
 }
 
 export async function update(req: Request, res: Response) {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        message: "Usuário não autenticado",
-      });
+      throw new AppError("Usuário não autenticado", 401);
     }
 
     const id = req.params.id;
 
     if (!id || Array.isArray(id)) {
-      return res.status(400).json({
-        message: "ID inválido",
-      });
+      throw new AppError("ID inválido", 400);
     }
 
     const restaurant = await updateRestaurantById(id, req.body, req.user);
 
     return res.json(restaurant);
   } catch (error) {
-    return res.status(getStatusCode(error)).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Erro ao atualizar restaurante",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao atualizar restaurante"),
+      getStatusCode(error),
+    );
   }
 }
 
@@ -130,21 +136,21 @@ export async function block(req: Request, res: Response) {
     const id = req.params.id;
 
     if (!id || Array.isArray(id)) {
-      return res.status(400).json({
-        message: "ID inválido",
-      });
+      throw new AppError("ID inválido", 400);
     }
 
     const restaurant = await blockRestaurantById(id);
 
     return res.json(restaurant);
   } catch (error) {
-    return res.status(getStatusCode(error)).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Erro ao bloquear restaurante",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao bloquear restaurante"),
+      getStatusCode(error),
+    );
   }
 }
 
@@ -153,21 +159,21 @@ export async function activate(req: Request, res: Response) {
     const id = req.params.id;
 
     if (!id || Array.isArray(id)) {
-      return res.status(400).json({
-        message: "ID inválido",
-      });
+      throw new AppError("ID inválido", 400);
     }
 
     const restaurant = await activateRestaurantById(id);
 
     return res.json(restaurant);
   } catch (error) {
-    return res.status(getStatusCode(error)).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Erro ao ativar restaurante",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao ativar restaurante"),
+      getStatusCode(error),
+    );
   }
 }
 
@@ -176,9 +182,7 @@ export async function destroy(req: Request, res: Response) {
     const id = req.params.id;
 
     if (!id || Array.isArray(id)) {
-      return res.status(400).json({
-        message: "ID inválido",
-      });
+      throw new AppError("ID inválido", 400);
     }
 
     const restaurant = await deleteRestaurantById(id);
@@ -188,11 +192,13 @@ export async function destroy(req: Request, res: Response) {
       restaurant,
     });
   } catch (error) {
-    return res.status(getStatusCode(error)).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Erro ao remover restaurante",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao remover restaurante"),
+      getStatusCode(error),
+    );
   }
 }

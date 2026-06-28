@@ -3,6 +3,7 @@ import { Router } from "express";
 import { authMiddleware } from "../config/jwt.js";
 import { requireRole } from "../middlewares/roleMiddleware.js";
 import { validateRequest } from "../middlewares/validateRequest.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
 import {
   createProductBodySchema,
@@ -87,7 +88,7 @@ router.post(
   validateRequest({
     body: loginBodySchema,
   }),
-  login,
+  asyncHandler(login),
 );
 
 /* =========================
@@ -99,14 +100,19 @@ router.get(
   validateRequest({
     params: slugParamSchema,
   }),
-  publicMenuController.show,
+  asyncHandler((req, res) => publicMenuController.show(req, res)),
 );
 
 /* =========================
    USERS - MASTER
 ========================= */
 
-router.get("/users", authMiddleware, requireRole("MASTER"), userIndex);
+router.get(
+  "/users",
+  authMiddleware,
+  requireRole("MASTER"),
+  asyncHandler(userIndex),
+);
 
 router.get(
   "/users/:id",
@@ -115,7 +121,7 @@ router.get(
   validateRequest({
     params: uuidParamSchema,
   }),
-  userShow,
+  asyncHandler(userShow),
 );
 
 /* =========================
@@ -126,7 +132,7 @@ router.get(
   "/restaurants",
   authMiddleware,
   requireRole("MASTER", "RESTAURANT_OWNER"),
-  restaurantIndex,
+  asyncHandler(restaurantIndex),
 );
 
 router.get(
@@ -136,7 +142,7 @@ router.get(
   validateRequest({
     params: uuidParamSchema,
   }),
-  restaurantShow,
+  asyncHandler(restaurantShow),
 );
 
 router.post(
@@ -146,7 +152,7 @@ router.post(
   validateRequest({
     body: createRestaurantBodySchema,
   }),
-  restaurantStore,
+  asyncHandler(restaurantStore),
 );
 
 router.patch(
@@ -157,7 +163,7 @@ router.patch(
     params: uuidParamSchema,
     body: updateRestaurantBodySchema,
   }),
-  restaurantUpdate,
+  asyncHandler(restaurantUpdate),
 );
 
 router.patch(
@@ -167,7 +173,7 @@ router.patch(
   validateRequest({
     params: uuidParamSchema,
   }),
-  restaurantBlock,
+  asyncHandler(restaurantBlock),
 );
 
 router.patch(
@@ -177,7 +183,7 @@ router.patch(
   validateRequest({
     params: uuidParamSchema,
   }),
-  restaurantActivate,
+  asyncHandler(restaurantActivate),
 );
 
 router.delete(
@@ -187,14 +193,19 @@ router.delete(
   validateRequest({
     params: uuidParamSchema,
   }),
-  restaurantDestroy,
+  asyncHandler(restaurantDestroy),
 );
 
 /* =========================
    PLANS - MASTER
 ========================= */
 
-router.get("/plans", authMiddleware, requireRole("MASTER"), planIndex);
+router.get(
+  "/plans",
+  authMiddleware,
+  requireRole("MASTER"),
+  asyncHandler(planIndex),
+);
 
 router.get(
   "/plans/:id",
@@ -203,7 +214,7 @@ router.get(
   validateRequest({
     params: uuidParamSchema,
   }),
-  planShow,
+  asyncHandler(planShow),
 );
 
 router.post(
@@ -213,7 +224,7 @@ router.post(
   validateRequest({
     body: createPlanBodySchema,
   }),
-  planStore,
+  asyncHandler(planStore),
 );
 
 router.patch(
@@ -224,7 +235,7 @@ router.patch(
     params: uuidParamSchema,
     body: updatePlanBodySchema,
   }),
-  planUpdate,
+  asyncHandler(planUpdate),
 );
 
 router.patch(
@@ -234,7 +245,7 @@ router.patch(
   validateRequest({
     params: uuidParamSchema,
   }),
-  planDisable,
+  asyncHandler(planDisable),
 );
 
 router.delete(
@@ -244,7 +255,7 @@ router.delete(
   validateRequest({
     params: uuidParamSchema,
   }),
-  planDestroy,
+  asyncHandler(planDestroy),
 );
 
 /* =========================
@@ -258,7 +269,7 @@ router.post(
   validateRequest({
     body: createCategoryBodySchema,
   }),
-  categoryController.create,
+  asyncHandler((req, res) => categoryController.create(req, res)),
 );
 
 router.get(
@@ -268,7 +279,7 @@ router.get(
   validateRequest({
     query: optionalRestaurantIdQuerySchema,
   }),
-  categoryController.findAll,
+  asyncHandler((req, res) => categoryController.findAll(req, res)),
 );
 
 router.get(
@@ -278,7 +289,7 @@ router.get(
   validateRequest({
     params: uuidParamSchema,
   }),
-  categoryController.findById,
+  asyncHandler((req, res) => categoryController.findById(req, res)),
 );
 
 router.patch(
@@ -289,7 +300,7 @@ router.patch(
     params: uuidParamSchema,
     body: updateCategoryBodySchema,
   }),
-  categoryController.update,
+  asyncHandler((req, res) => categoryController.update(req, res)),
 );
 
 router.patch(
@@ -299,7 +310,7 @@ router.patch(
   validateRequest({
     params: uuidParamSchema,
   }),
-  categoryController.activate,
+  asyncHandler((req, res) => categoryController.activate(req, res)),
 );
 
 router.patch(
@@ -309,7 +320,7 @@ router.patch(
   validateRequest({
     params: uuidParamSchema,
   }),
-  categoryController.disable,
+  asyncHandler((req, res) => categoryController.disable(req, res)),
 );
 
 router.delete(
@@ -319,7 +330,7 @@ router.delete(
   validateRequest({
     params: uuidParamSchema,
   }),
-  categoryController.delete,
+  asyncHandler((req, res) => categoryController.delete(req, res)),
 );
 
 /* =========================
@@ -333,7 +344,7 @@ router.post(
   validateRequest({
     body: createProductBodySchema,
   }),
-  productController.create,
+  asyncHandler((req, res) => productController.create(req, res)),
 );
 
 router.get(
@@ -343,8 +354,9 @@ router.get(
   validateRequest({
     query: listProductsQuerySchema,
   }),
-  productController.findAll,
+  asyncHandler((req, res) => productController.findAll(req, res)),
 );
+
 router.get(
   "/products/:id",
   authMiddleware,
@@ -352,7 +364,7 @@ router.get(
   validateRequest({
     params: uuidParamSchema,
   }),
-  productController.findById,
+  asyncHandler((req, res) => productController.findById(req, res)),
 );
 
 router.patch(
@@ -363,7 +375,7 @@ router.patch(
     params: uuidParamSchema,
     body: updateProductBodySchema,
   }),
-  productController.update,
+  asyncHandler((req, res) => productController.update(req, res)),
 );
 
 router.patch(
@@ -373,7 +385,7 @@ router.patch(
   validateRequest({
     params: uuidParamSchema,
   }),
-  productController.activate,
+  asyncHandler((req, res) => productController.activate(req, res)),
 );
 
 router.patch(
@@ -383,7 +395,7 @@ router.patch(
   validateRequest({
     params: uuidParamSchema,
   }),
-  productController.disable,
+  asyncHandler((req, res) => productController.disable(req, res)),
 );
 
 router.delete(
@@ -393,7 +405,7 @@ router.delete(
   validateRequest({
     params: uuidParamSchema,
   }),
-  productController.delete,
+  asyncHandler((req, res) => productController.delete(req, res)),
 );
 
 /* =========================
@@ -407,7 +419,7 @@ router.post(
   validateRequest({
     body: createBannerBodySchema,
   }),
-  bannerController.create,
+  asyncHandler((req, res) => bannerController.create(req, res)),
 );
 
 router.get(
@@ -417,7 +429,7 @@ router.get(
   validateRequest({
     query: optionalRestaurantIdQuerySchema,
   }),
-  bannerController.findAll,
+  asyncHandler((req, res) => bannerController.findAll(req, res)),
 );
 
 router.get(
@@ -427,7 +439,7 @@ router.get(
   validateRequest({
     params: uuidParamSchema,
   }),
-  bannerController.findById,
+  asyncHandler((req, res) => bannerController.findById(req, res)),
 );
 
 router.patch(
@@ -438,7 +450,7 @@ router.patch(
     params: uuidParamSchema,
     body: updateBannerBodySchema,
   }),
-  bannerController.update,
+  asyncHandler((req, res) => bannerController.update(req, res)),
 );
 
 router.patch(
@@ -448,7 +460,7 @@ router.patch(
   validateRequest({
     params: uuidParamSchema,
   }),
-  bannerController.activate,
+  asyncHandler((req, res) => bannerController.activate(req, res)),
 );
 
 router.patch(
@@ -458,7 +470,7 @@ router.patch(
   validateRequest({
     params: uuidParamSchema,
   }),
-  bannerController.disable,
+  asyncHandler((req, res) => bannerController.disable(req, res)),
 );
 
 router.delete(
@@ -468,7 +480,7 @@ router.delete(
   validateRequest({
     params: uuidParamSchema,
   }),
-  bannerController.delete,
+  asyncHandler((req, res) => bannerController.delete(req, res)),
 );
 
 /* =========================
@@ -482,7 +494,7 @@ router.get(
   validateRequest({
     query: restaurantIdQuerySchema,
   }),
-  dashboardController.getStats,
+  asyncHandler((req, res) => dashboardController.getStats(req, res)),
 );
 
 router.get(
@@ -492,7 +504,9 @@ router.get(
   validateRequest({
     query: restaurantIdQuerySchema,
   }),
-  dashboardController.getRecentProducts,
+  asyncHandler((req, res) =>
+    dashboardController.getRecentProducts(req, res),
+  ),
 );
 
 export default router;

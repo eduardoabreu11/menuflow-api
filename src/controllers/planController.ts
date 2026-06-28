@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 
-
 import {
   getAllPlans,
   getPlanById,
@@ -9,6 +8,27 @@ import {
   disablePlanById,
   deletePlanById,
 } from "../services/planService.js";
+
+import { AppError } from "../utils/AppError.js";
+
+function getStatusCode(error: unknown) {
+  if (!(error instanceof Error)) {
+    return 400;
+  }
+
+  if (
+    error.message.includes("não encontrado") ||
+    error.message.includes("não encontrada")
+  ) {
+    return 404;
+  }
+
+  return 400;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export async function index(req: Request, res: Response) {
   const plans = await getAllPlans();
@@ -21,19 +41,21 @@ export async function show(req: Request, res: Response) {
     const id = req.params.id;
 
     if (!id || Array.isArray(id)) {
-      return res.status(400).json({
-        message: "ID inválido",
-      });
+      throw new AppError("ID inválido", 400);
     }
 
     const plan = await getPlanById(id);
 
     return res.json(plan);
   } catch (error) {
-    return res.status(404).json({
-      message:
-        error instanceof Error ? error.message : "Plano não encontrado",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Plano não encontrado"),
+      getStatusCode(error),
+    );
   }
 }
 
@@ -63,80 +85,69 @@ export async function store(req: Request, res: Response) {
 
     return res.status(201).json(plan);
   } catch (error) {
-    return res.status(400).json({
-      message:
-        error instanceof Error ? error.message : "Erro ao criar plano",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao criar plano"),
+      getStatusCode(error),
+    );
   }
 }
 
-
-export async function update(
-  req: Request,
-  res: Response
-) {
+export async function update(req: Request, res: Response) {
   try {
     const id = req.params.id;
 
     if (!id || Array.isArray(id)) {
-      return res.status(400).json({
-        message: "ID inválido",
-      });
+      throw new AppError("ID inválido", 400);
     }
 
-    const plan = await updatePlanById(
-      id,
-      req.body
-    );
+    const plan = await updatePlanById(id, req.body);
 
     return res.json(plan);
   } catch (error) {
-    return res.status(400).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Erro ao atualizar plano",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao atualizar plano"),
+      getStatusCode(error),
+    );
   }
 }
 
-export async function disable(
-  req: Request,
-  res: Response
-) {
+export async function disable(req: Request, res: Response) {
   try {
     const id = req.params.id;
 
     if (!id || Array.isArray(id)) {
-      return res.status(400).json({
-        message: "ID inválido",
-      });
+      throw new AppError("ID inválido", 400);
     }
 
     const plan = await disablePlanById(id);
 
     return res.json(plan);
   } catch (error) {
-    return res.status(400).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Erro ao desativar plano",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao desativar plano"),
+      getStatusCode(error),
+    );
   }
 }
 
-export async function destroy(
-  req: Request,
-  res: Response
-) {
+export async function destroy(req: Request, res: Response) {
   try {
     const id = req.params.id;
 
     if (!id || Array.isArray(id)) {
-      return res.status(400).json({
-        message: "ID inválido",
-      });
+      throw new AppError("ID inválido", 400);
     }
 
     const plan = await deletePlanById(id);
@@ -146,11 +157,13 @@ export async function destroy(
       plan,
     });
   } catch (error) {
-    return res.status(400).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Erro ao remover plano",
-    });
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      getErrorMessage(error, "Erro ao remover plano"),
+      getStatusCode(error),
+    );
   }
 }

@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
+
 import { CategoryService } from "../services/categoryService.js";
+import { AppError } from "../utils/AppError.js";
 
 const categoryService = new CategoryService();
 
@@ -12,39 +14,46 @@ function getStatusCode(error: unknown) {
     return 403;
   }
 
-  if (error.message.includes("não encontrada")) {
+  if (
+    error.message.includes("não encontrado") ||
+    error.message.includes("não encontrada")
+  ) {
     return 404;
   }
 
   return 400;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export class CategoryController {
   async create(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const category = await categoryService.create(req.body, req.user);
 
       return res.status(201).json(category);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error ? error.message : "Erro ao criar categoria",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao criar categoria"),
+        getStatusCode(error),
+      );
     }
   }
 
   async findAll(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const { restaurant_id } = req.query;
@@ -62,19 +71,21 @@ export class CategoryController {
 
       return res.json(categories);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error ? error.message : "Erro ao listar categorias",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao listar categorias"),
+        getStatusCode(error),
+      );
     }
   }
 
   async findById(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const id = String(req.params.id);
@@ -83,19 +94,21 @@ export class CategoryController {
 
       return res.json(category);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error ? error.message : "Erro ao buscar categoria",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao buscar categoria"),
+        getStatusCode(error),
+      );
     }
   }
 
   async update(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const id = String(req.params.id);
@@ -104,19 +117,21 @@ export class CategoryController {
 
       return res.json(category);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error ? error.message : "Erro ao atualizar categoria",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao atualizar categoria"),
+        getStatusCode(error),
+      );
     }
   }
 
   async activate(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const id = String(req.params.id);
@@ -125,19 +140,21 @@ export class CategoryController {
 
       return res.json(category);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error ? error.message : "Erro ao ativar categoria",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao ativar categoria"),
+        getStatusCode(error),
+      );
     }
   }
 
   async disable(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const id = String(req.params.id);
@@ -146,21 +163,21 @@ export class CategoryController {
 
       return res.json(category);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao desativar categoria",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao desativar categoria"),
+        getStatusCode(error),
+      );
     }
   }
 
   async delete(req: Request, res: Response) {
     try {
       if (!req.user) {
-        return res.status(401).json({
-          message: "Usuário não autenticado",
-        });
+        throw new AppError("Usuário não autenticado", 401);
       }
 
       const id = String(req.params.id);
@@ -169,10 +186,14 @@ export class CategoryController {
 
       return res.json(result);
     } catch (error) {
-      return res.status(getStatusCode(error)).json({
-        message:
-          error instanceof Error ? error.message : "Erro ao deletar categoria",
-      });
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(
+        getErrorMessage(error, "Erro ao deletar categoria"),
+        getStatusCode(error),
+      );
     }
   }
 }
