@@ -13,6 +13,13 @@ describe.sequential("Autorização e isolamento por restaurante", () => {
   let restaurantAId: string;
   let restaurantBId: string;
 
+  let categoryAId: string;
+  let categoryBId: string;
+  let ownerCreatedCategoryId: string;
+
+  let productAId: string;
+  let bannerAId: string;
+
   const timestamp = Date.now();
 
   const ownerAEmail = `owner.a.${timestamp}@menuflow.com`;
@@ -84,6 +91,28 @@ describe.sequential("Autorização e isolamento por restaurante", () => {
 
     restaurantBId = restaurantBResponse.body.id;
 
+    const categoryAResponse = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${masterToken}`)
+      .send({
+        restaurant_id: restaurantAId,
+        name: `Categoria A Base ${timestamp}`,
+        emoji: "🍕",
+      });
+
+    categoryAId = categoryAResponse.body.id;
+
+    const categoryBResponse = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${masterToken}`)
+      .send({
+        restaurant_id: restaurantBId,
+        name: `Categoria B Base ${timestamp}`,
+        emoji: "🍔",
+      });
+
+    categoryBId = categoryBResponse.body.id;
+
     const ownerALoginResponse = await request(app).post("/login").send({
       email: ownerAEmail,
       password: "123456",
@@ -93,6 +122,36 @@ describe.sequential("Autorização e isolamento por restaurante", () => {
   });
 
   afterAll(async () => {
+    if (productAId) {
+      await request(app)
+        .delete(`/products/${productAId}`)
+        .set("Authorization", `Bearer ${masterToken}`);
+    }
+
+    if (bannerAId) {
+      await request(app)
+        .delete(`/banners/${bannerAId}`)
+        .set("Authorization", `Bearer ${masterToken}`);
+    }
+
+    if (ownerCreatedCategoryId) {
+      await request(app)
+        .delete(`/categories/${ownerCreatedCategoryId}`)
+        .set("Authorization", `Bearer ${masterToken}`);
+    }
+
+    if (categoryAId) {
+      await request(app)
+        .delete(`/categories/${categoryAId}`)
+        .set("Authorization", `Bearer ${masterToken}`);
+    }
+
+    if (categoryBId) {
+      await request(app)
+        .delete(`/categories/${categoryBId}`)
+        .set("Authorization", `Bearer ${masterToken}`);
+    }
+
     if (restaurantAId) {
       await request(app)
         .delete(`/restaurants/${restaurantAId}`)
@@ -182,5 +241,136 @@ describe.sequential("Autorização e isolamento por restaurante", () => {
     expect(response.status).toBe(201);
     expect(response.body).toHaveProperty("id");
     expect(response.body.restaurant_id).toBe(restaurantAId);
+
+    ownerCreatedCategoryId = response.body.id;
+  });
+
+  it("não deve permitir OWNER criar produto em restaurante de outro dono", async () => {
+    const response = await request(app)
+      .post("/products")
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        restaurant_id: restaurantBId,
+        category_id: categoryBId,
+        name: `Produto invasão ${timestamp}`,
+        description: "Produto tentando invadir outro restaurante",
+        price: 29.9,
+        image_url: null,
+        video_url: null,
+        is_promotion: false,
+        is_new: false,
+      });
+
+    expect(response.status).toBe(403);
+    expect(response.body).toHaveProperty("message");
+  });
+
+  it("não deve permitir OWNER criar produto usando categoria de outro restaurante", async () => {
+    const response = await request(app)
+      .post("/products")
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        restaurant_id: restaurantAId,
+        category_id: categoryBId,
+        name: `Produto categoria errada ${timestamp}`,
+        description: "Produto usando categoria de outro restaurante",
+        price: 39.9,
+        image_url: null,
+        video_url: null,
+        is_promotion: false,
+        is_new: false,
+      });
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+  });
+
+  it("deve permitir OWNER criar produto no próprio restaurante", async () => {
+    const response = await request(app)
+      .post("/products")
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        restaurant_id: restaurantAId,
+        category_id: categoryAId,
+        name: `Produto próprio ${timestamp}`,
+        description: "Produto criado no restaurante correto",
+        price: 49.9,
+        image_url: null,
+        video_url: null,
+        is_promotion: false,
+        is_new: true,
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toHaveProperty("id");
+    expect(response.body.restaurant_id).toBe(restaurantAId);
+    expect(response.body.category_id).toBe(categoryAId);
+
+    productAId = response.body.id;
+  });
+
+  it("não deve permitir OWNER criar banner em restaurante de outro dono", async () => {
+    const response = await request(app)
+      .post("/banners")
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        restaurant_id: restaurantBId,
+        image_url: `https://example.com/banner-invasao-${timestamp}.jpg`,
+      });
+
+    expect(response.status).toBe(403);
+    expect(response.body).toHaveProperty("message");
+  });
+
+  it("deve permitir OWNER criar banner no próprio restaurante", async () => {
+    const response = await request(app)
+      .post("/banners")
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        restaurant_id: restaurantAId,
+        image_url: `https://example.com/banner-proprio-${timestamp}.jpg`,
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toHaveProperty("id");
+    expect(response.body.restaurant_id).toBe(restaurantAId);
+
+    bannerAId = response.body.id;
+  });
+  
+  it("não deve permitir OWNER acessar dashboard de restaurante de outro dono", async () => {
+    const response = await request(app)
+      .get(`/dashboard?restaurant_id=${restaurantBId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`);
+
+    expect(response.status).toBe(403);
+    expect(response.body).toHaveProperty("message");
+  });
+
+  it("deve permitir OWNER acessar dashboard do próprio restaurante", async () => {
+    const response = await request(app)
+      .get(`/dashboard?restaurant_id=${restaurantAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`);
+
+    expect(response.status).toBe(200);
+    expect(typeof response.body).toBe("object");
+  });
+
+  it("não deve permitir OWNER acessar produtos recentes de restaurante de outro dono", async () => {
+    const response = await request(app)
+      .get(`/dashboard/recent-products?restaurant_id=${restaurantBId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`);
+
+    expect(response.status).toBe(403);
+    expect(response.body).toHaveProperty("message");
+  });
+
+  it("deve permitir OWNER acessar produtos recentes do próprio restaurante", async () => {
+    const response = await request(app)
+      .get(`/dashboard/recent-products?restaurant_id=${restaurantAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`);
+
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
   });
 });
