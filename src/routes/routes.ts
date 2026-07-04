@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 import { authMiddleware } from "../config/jwt.js";
-import { requireRole } from "../middlewares/roleMiddleware.js";
+import { requireRole } from "../middlewares/requireRole.js";
 import { validateRequest } from "../middlewares/validateRequest.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
