@@ -46,6 +46,22 @@ import {
 } from "../validations/restaurantValidation.js";
 
 import {
+  createSubscriptionBodySchema,
+  subscriptionIdParamsSchema,
+  subscriptionRestaurantIdParamsSchema,
+  updateSubscriptionBodySchema,
+} from "../validations/subscriptionValidation.js";
+
+import {
+  createPaymentBodySchema,
+  markPaymentAsPaidBodySchema,
+  paymentIdParamsSchema,
+  paymentRestaurantIdParamsSchema,
+  paymentSubscriptionIdParamsSchema,
+  updatePaymentBodySchema,
+} from "../validations/paymentValidation.js";
+
+import {
   activate as userActivate,
   destroy as userDestroy,
   disable as userDisable,
@@ -76,6 +92,27 @@ import {
   disable as planDisable,
   destroy as planDestroy,
 } from "../controllers/planController.js";
+
+import {
+  cancelSubscriptionController,
+  createSubscriptionController,
+  getSubscriptionByIdController,
+  getSubscriptionByRestaurantIdController,
+  listSubscriptionsController,
+  updateSubscriptionController,
+} from "../controllers/subscriptionController.js";
+
+import {
+  cancelPaymentController,
+  createPaymentController,
+  deletePaymentController,
+  getPaymentByIdController,
+  getPaymentsByRestaurantIdController,
+  getPaymentsBySubscriptionIdController,
+  listPaymentsController,
+  markPaymentAsPaidController,
+  updatePaymentController,
+} from "../controllers/paymentController.js";
 
 import { CategoryController } from "../controllers/categoryController.js";
 import { ProductController } from "../controllers/productController.js";
@@ -187,17 +224,9 @@ router.delete(
   asyncHandler(userDestroy),
 );
 
-router.post(
-  "/logout",
-  authMiddleware,
-  asyncHandler(logout),
-);
+router.post("/logout", authMiddleware, asyncHandler(logout));
 
-router.get(
-  "/me",
-  authMiddleware,
-  asyncHandler(me),
-);
+router.get("/me", authMiddleware, asyncHandler(me));
 
 /* =========================
    RESTAURANTS - MASTER + OWNER
@@ -331,6 +360,161 @@ router.delete(
     params: uuidParamSchema,
   }),
   asyncHandler(planDestroy),
+);
+
+/* =========================
+   SUBSCRIPTIONS - MASTER
+========================= */
+
+router.get(
+  "/subscriptions",
+  authMiddleware,
+  requireRole("MASTER"),
+  listSubscriptionsController,
+);
+
+router.get(
+  "/subscriptions/restaurant/:restaurant_id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: subscriptionRestaurantIdParamsSchema,
+  }),
+  getSubscriptionByRestaurantIdController,
+);
+
+router.get(
+  "/subscriptions/:id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: subscriptionIdParamsSchema,
+  }),
+  getSubscriptionByIdController,
+);
+
+router.post(
+  "/subscriptions",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    body: createSubscriptionBodySchema,
+  }),
+  createSubscriptionController,
+);
+
+router.patch(
+  "/subscriptions/:id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: subscriptionIdParamsSchema,
+    body: updateSubscriptionBodySchema,
+  }),
+  updateSubscriptionController,
+);
+
+router.patch(
+  "/subscriptions/:id/cancel",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: subscriptionIdParamsSchema,
+  }),
+  cancelSubscriptionController,
+);
+
+/* =========================
+   PAYMENTS - MASTER
+========================= */
+
+router.get(
+  "/payments",
+  authMiddleware,
+  requireRole("MASTER"),
+  listPaymentsController,
+);
+
+router.get(
+  "/payments/restaurant/:restaurant_id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: paymentRestaurantIdParamsSchema,
+  }),
+  getPaymentsByRestaurantIdController,
+);
+
+router.get(
+  "/payments/subscription/:subscription_id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: paymentSubscriptionIdParamsSchema,
+  }),
+  getPaymentsBySubscriptionIdController,
+);
+
+router.get(
+  "/payments/:id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: paymentIdParamsSchema,
+  }),
+  getPaymentByIdController,
+);
+
+router.post(
+  "/payments",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    body: createPaymentBodySchema,
+  }),
+  createPaymentController,
+);
+
+router.patch(
+  "/payments/:id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: paymentIdParamsSchema,
+    body: updatePaymentBodySchema,
+  }),
+  updatePaymentController,
+);
+
+router.patch(
+  "/payments/:id/pay",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: paymentIdParamsSchema,
+    body: markPaymentAsPaidBodySchema,
+  }),
+  markPaymentAsPaidController,
+);
+
+router.patch(
+  "/payments/:id/cancel",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: paymentIdParamsSchema,
+  }),
+  cancelPaymentController,
+);
+
+router.delete(
+  "/payments/:id",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: paymentIdParamsSchema,
+  }),
+  deletePaymentController,
 );
 
 /* =========================
