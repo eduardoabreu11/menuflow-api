@@ -92,13 +92,13 @@ export async function updateRestaurantById(
     throw new Error("Slug do restaurante é obrigatório");
   }
 
-  const slugExists = await findRestaurantBySlug(data.slug);
-
-  if (slugExists && slugExists.id !== id) {
-    throw new Error("Slug já cadastrado");
-  }
-
   if (user.role === "MASTER") {
+    const slugExists = await findRestaurantBySlug(data.slug);
+
+    if (slugExists && slugExists.id !== id) {
+      throw new Error("Slug já cadastrado");
+    }
+
     const restaurant = await updateRestaurant(id, data);
 
     if (!restaurant) {
@@ -106,6 +106,22 @@ export async function updateRestaurantById(
     }
 
     return restaurant;
+  }
+
+  const currentRestaurant = await findRestaurantByIdForOwner(id, user.id);
+
+  if (!currentRestaurant) {
+    throw new Error("Restaurante não encontrado ou acesso negado");
+  }
+
+  if (currentRestaurant.status !== "ACTIVE") {
+    throw new Error("Restaurante bloqueado");
+  }
+
+  const slugExists = await findRestaurantBySlug(data.slug);
+
+  if (slugExists && slugExists.id !== id) {
+    throw new Error("Slug já cadastrado");
   }
 
   const restaurant = await updateRestaurantForOwner(id, user.id, data);

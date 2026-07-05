@@ -337,7 +337,7 @@ describe.sequential("Autorização e isolamento por restaurante", () => {
 
     bannerAId = response.body.id;
   });
-  
+
   it("não deve permitir OWNER acessar dashboard de restaurante de outro dono", async () => {
     const response = await request(app)
       .get(`/dashboard?restaurant_id=${restaurantBId}`)
@@ -372,5 +372,168 @@ describe.sequential("Autorização e isolamento por restaurante", () => {
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
+  });
+
+  it("deve permitir MASTER bloquear restaurante", async () => {
+    const response = await request(app)
+      .patch(`/restaurants/${restaurantAId}/block`)
+      .set("Authorization", `Bearer ${masterToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.id).toBe(restaurantAId);
+    expect(response.body.status).toBe("BLOCKED");
+  });
+
+  it("deve permitir OWNER visualizar o próprio restaurante bloqueado", async () => {
+    const response = await request(app)
+      .get(`/restaurants/${restaurantAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.id).toBe(restaurantAId);
+    expect(response.body.status).toBe("BLOCKED");
+  });
+
+  it("não deve permitir OWNER criar categoria em restaurante bloqueado", async () => {
+    const response = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        restaurant_id: restaurantAId,
+        name: `Categoria bloqueada ${timestamp}`,
+        emoji: "🚫",
+      });
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+    expect(response.body.message).toBe("Restaurante bloqueado");
+  });
+
+  it("não deve permitir OWNER criar produto em restaurante bloqueado", async () => {
+    const response = await request(app)
+      .post("/products")
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        restaurant_id: restaurantAId,
+        category_id: categoryAId,
+        name: `Produto bloqueado ${timestamp}`,
+        description: "Produto tentando ser criado em restaurante bloqueado",
+        price: 59.9,
+        image_url: null,
+        video_url: null,
+        is_promotion: false,
+        is_new: false,
+      });
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+    expect(response.body.message).toBe("Restaurante bloqueado");
+  });
+
+  it("não deve permitir OWNER criar banner em restaurante bloqueado", async () => {
+    const response = await request(app)
+      .post("/banners")
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        restaurant_id: restaurantAId,
+        image_url: `https://example.com/banner-bloqueado-${timestamp}.jpg`,
+      });
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+    expect(response.body.message).toBe("Restaurante bloqueado");
+  });
+
+  it("não deve permitir OWNER acessar dashboard de restaurante bloqueado", async () => {
+    const response = await request(app)
+      .get(`/dashboard?restaurant_id=${restaurantAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`);
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+    expect(response.body.message).toBe("Restaurante bloqueado");
+  });
+
+  it("não deve permitir OWNER acessar produtos recentes de restaurante bloqueado", async () => {
+    const response = await request(app)
+      .get(`/dashboard/recent-products?restaurant_id=${restaurantAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`);
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+    expect(response.body.message).toBe("Restaurante bloqueado");
+  });
+
+  it("não deve permitir OWNER editar restaurante bloqueado", async () => {
+    const response = await request(app)
+      .patch(`/restaurants/${restaurantAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        name: "Restaurante A Bloqueado Editado",
+        slug: `restaurante-a-${timestamp}`,
+      });
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+    expect(response.body.message).toBe("Restaurante bloqueado");
+  });
+
+  it("não deve permitir OWNER editar categoria de restaurante bloqueado", async () => {
+    const response = await request(app)
+      .patch(`/categories/${categoryAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        name: `Categoria A Bloqueada ${timestamp}`,
+        emoji: "🚫",
+      });
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+    expect(response.body.message).toBe("Restaurante bloqueado");
+  });
+
+  it("não deve permitir OWNER editar produto de restaurante bloqueado", async () => {
+    const response = await request(app)
+      .patch(`/products/${productAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        name: `Produto Bloqueado Editado ${timestamp}`,
+      });
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+    expect(response.body.message).toBe("Restaurante bloqueado");
+  });
+
+  it("não deve permitir OWNER editar banner de restaurante bloqueado", async () => {
+    const response = await request(app)
+      .patch(`/banners/${bannerAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`)
+      .send({
+        image_url: `https://example.com/banner-bloqueado-editado-${timestamp}.jpg`,
+      });
+
+    expect([400, 403]).toContain(response.status);
+    expect(response.body).toHaveProperty("message");
+    expect(response.body.message).toBe("Restaurante bloqueado");
+  });
+
+  it("deve permitir MASTER ativar restaurante bloqueado", async () => {
+    const response = await request(app)
+      .patch(`/restaurants/${restaurantAId}/activate`)
+      .set("Authorization", `Bearer ${masterToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.id).toBe(restaurantAId);
+    expect(response.body.status).toBe("ACTIVE");
+  });
+
+  it("deve permitir OWNER voltar a acessar dashboard após restaurante ser ativado", async () => {
+    const response = await request(app)
+      .get(`/dashboard?restaurant_id=${restaurantAId}`)
+      .set("Authorization", `Bearer ${ownerAToken}`);
+
+    expect(response.status).toBe(200);
+    expect(typeof response.body).toBe("object");
   });
 });

@@ -1,12 +1,8 @@
 // src/config/jwt.ts
-
 import jwt from "jsonwebtoken";
-import type {
-  CookieOptions,
-  Request,
-  Response,
-  NextFunction,
-} from "express";
+import type { CookieOptions, Request, Response, NextFunction } from "express";
+
+import { findUserById } from "../repositories/userRepository.js";
 
 const jwtSecretFromEnv = process.env.JWT_SECRET;
 
@@ -140,7 +136,7 @@ function getTokenFromRequest(req: Request) {
   };
 }
 
-export function authMiddleware(
+export async function authMiddleware(
   req: Request,
   res: Response,
   next: NextFunction,
@@ -160,12 +156,35 @@ export function authMiddleware(
       });
     }
 
-    const user = verifyToken(token);
+    const tokenUser = verifyToken(token);
 
-    req.user = user;
+    const user = await findUserById(tokenUser.id);
 
-    next();
+    if (!user) {
+      res.clearCookie(AUTH_COOKIE_NAME, clearAuthCookieOptions);
+
+      return res.status(401).json({
+        message: "Usuário não encontrado",
+      });
+    }
+
+    if (!user.is_active) {
+      res.clearCookie(AUTH_COOKIE_NAME, clearAuthCookieOptions);
+
+      return res.status(403).json({
+        message: "Usuário inativo",
+      });
+    }
+
+    req.user = {
+      id: user.id,
+      role: user.role,
+    };
+
+    return next();
   } catch {
+    res.clearCookie(AUTH_COOKIE_NAME, clearAuthCookieOptions);
+
     return res.status(401).json({
       message: "Token inválido ou expirado",
     });

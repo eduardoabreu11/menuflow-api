@@ -1,5 +1,5 @@
 import { BannerRepository } from "../repositories/bannerRepository.js";
-import { userOwnsRestaurant } from "../repositories/restaurantRepository.js";
+import { findRestaurantByIdForOwner } from "../repositories/restaurantRepository.js";
 
 import type {
   CreateBannerDTO,
@@ -21,13 +21,17 @@ export class BannerService {
     }
 
     if (user.role !== "MASTER") {
-      const ownsRestaurant = await userOwnsRestaurant(
-        user.id,
+      const restaurant = await findRestaurantByIdForOwner(
         data.restaurant_id,
+        user.id,
       );
 
-      if (!ownsRestaurant) {
+      if (!restaurant) {
         throw new Error("Acesso negado ao restaurante");
+      }
+
+      if (restaurant.status !== "ACTIVE") {
+        throw new Error("Restaurante bloqueado");
       }
     }
 
@@ -79,6 +83,19 @@ export class BannerService {
       throw new Error("Banner não encontrado ou acesso negado");
     }
 
+    const restaurant = await findRestaurantByIdForOwner(
+      banner.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
+    }
+
     return banner;
   }
 
@@ -91,10 +108,17 @@ export class BannerService {
       return await bannerRepository.findByRestaurantId(restaurantId);
     }
 
-    const ownsRestaurant = await userOwnsRestaurant(user.id, restaurantId);
+    const restaurant = await findRestaurantByIdForOwner(
+      restaurantId,
+      user.id,
+    );
 
-    if (!ownsRestaurant) {
+    if (!restaurant) {
       throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     return await bannerRepository.findByRestaurantIdForOwner(
@@ -145,6 +169,19 @@ export class BannerService {
       throw new Error("Banner não encontrado ou acesso negado");
     }
 
+    const restaurant = await findRestaurantByIdForOwner(
+      currentBanner.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
+    }
+
     if (data.image_url) {
       const bannerExists =
         await bannerRepository.findByImageUrlAndRestaurantIdExceptId(
@@ -180,6 +217,25 @@ export class BannerService {
       return banner;
     }
 
+    const currentBanner = await bannerRepository.findByIdForOwner(id, user.id);
+
+    if (!currentBanner) {
+      throw new Error("Banner não encontrado ou acesso negado");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      currentBanner.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
+    }
+
     const banner = await bannerRepository.activateForOwner(id, user.id);
 
     if (!banner) {
@@ -198,6 +254,25 @@ export class BannerService {
       }
 
       return banner;
+    }
+
+    const currentBanner = await bannerRepository.findByIdForOwner(id, user.id);
+
+    if (!currentBanner) {
+      throw new Error("Banner não encontrado ou acesso negado");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      currentBanner.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     const banner = await bannerRepository.disableForOwner(id, user.id);
@@ -220,6 +295,25 @@ export class BannerService {
       return {
         message: "Banner deletado com sucesso",
       };
+    }
+
+    const currentBanner = await bannerRepository.findByIdForOwner(id, user.id);
+
+    if (!currentBanner) {
+      throw new Error("Banner não encontrado ou acesso negado");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      currentBanner.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     const banner = await bannerRepository.deleteForOwner(id, user.id);

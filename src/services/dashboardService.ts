@@ -1,7 +1,7 @@
 import type { AuthUser } from "../config/jwt.js";
 
 import { DashboardRepository } from "../repositories/dashboardRepository.js";
-import { userOwnsRestaurant } from "../repositories/restaurantRepository.js";
+import { findRestaurantByIdForOwner } from "../repositories/restaurantRepository.js";
 
 const dashboardRepository = new DashboardRepository();
 
@@ -15,10 +15,17 @@ export class DashboardService {
       return await dashboardRepository.getRecentProducts(restaurantId);
     }
 
-    const ownsRestaurant = await userOwnsRestaurant(user.id, restaurantId);
+    const restaurant = await findRestaurantByIdForOwner(
+      restaurantId,
+      user.id,
+    );
 
-    if (!ownsRestaurant) {
+    if (!restaurant) {
       throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     return await dashboardRepository.getRecentProductsForOwner(
@@ -36,10 +43,17 @@ export class DashboardService {
       return await dashboardRepository.getStats(restaurantId);
     }
 
-    const ownsRestaurant = await userOwnsRestaurant(user.id, restaurantId);
+    const restaurant = await findRestaurantByIdForOwner(
+      restaurantId,
+      user.id,
+    );
 
-    if (!ownsRestaurant) {
+    if (!restaurant) {
       throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     return await dashboardRepository.getStatsForOwner(

@@ -1,5 +1,5 @@
 import { CategoryRepository } from "../repositories/categoryRepository.js";
-import { userOwnsRestaurant } from "../repositories/restaurantRepository.js";
+import { findRestaurantByIdForOwner } from "../repositories/restaurantRepository.js";
 
 import type {
   CreateCategoryDTO,
@@ -21,13 +21,17 @@ export class CategoryService {
     }
 
     if (user.role !== "MASTER") {
-      const ownsRestaurant = await userOwnsRestaurant(
-        user.id,
+      const restaurant = await findRestaurantByIdForOwner(
         data.restaurant_id,
+        user.id,
       );
 
-      if (!ownsRestaurant) {
+      if (!restaurant) {
         throw new Error("Acesso negado ao restaurante");
+      }
+
+      if (restaurant.status !== "ACTIVE") {
+        throw new Error("Restaurante bloqueado");
       }
     }
 
@@ -91,10 +95,17 @@ export class CategoryService {
       return await categoryRepository.findByRestaurantId(restaurantId);
     }
 
-    const ownsRestaurant = await userOwnsRestaurant(user.id, restaurantId);
+    const restaurant = await findRestaurantByIdForOwner(
+      restaurantId,
+      user.id,
+    );
 
-    if (!ownsRestaurant) {
+    if (!restaurant) {
       throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     return await categoryRepository.findByRestaurantIdForOwner(
@@ -144,6 +155,19 @@ export class CategoryService {
       throw new Error("Categoria não encontrada ou acesso negado");
     }
 
+    const restaurant = await findRestaurantByIdForOwner(
+      currentCategory.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
+    }
+
     if (data.name) {
       const categoryExists =
         await categoryRepository.findByNameAndRestaurantIdExceptId(
@@ -179,6 +203,28 @@ export class CategoryService {
       return category;
     }
 
+    const currentCategory = await categoryRepository.findByIdForOwner(
+      id,
+      user.id,
+    );
+
+    if (!currentCategory) {
+      throw new Error("Categoria não encontrada ou acesso negado");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      currentCategory.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
+    }
+
     const category = await categoryRepository.activateForOwner(id, user.id);
 
     if (!category) {
@@ -197,6 +243,28 @@ export class CategoryService {
       }
 
       return category;
+    }
+
+    const currentCategory = await categoryRepository.findByIdForOwner(
+      id,
+      user.id,
+    );
+
+    if (!currentCategory) {
+      throw new Error("Categoria não encontrada ou acesso negado");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      currentCategory.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     const category = await categoryRepository.disableForOwner(id, user.id);
@@ -219,6 +287,28 @@ export class CategoryService {
       return {
         message: "Categoria deletada com sucesso",
       };
+    }
+
+    const currentCategory = await categoryRepository.findByIdForOwner(
+      id,
+      user.id,
+    );
+
+    if (!currentCategory) {
+      throw new Error("Categoria não encontrada ou acesso negado");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      currentCategory.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     const category = await categoryRepository.deleteForOwner(id, user.id);

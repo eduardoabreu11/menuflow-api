@@ -1,5 +1,6 @@
 import { ProductRepository } from "../repositories/productRepository.js";
-import { userOwnsRestaurant } from "../repositories/restaurantRepository.js";
+import { CategoryRepository } from "../repositories/categoryRepository.js";
+import { findRestaurantByIdForOwner } from "../repositories/restaurantRepository.js";
 
 import type {
   CreateProductDTO,
@@ -9,6 +10,7 @@ import type {
 import type { AuthUser } from "../config/jwt.js";
 
 const productRepository = new ProductRepository();
+const categoryRepository = new CategoryRepository();
 
 export class ProductService {
   async create(data: CreateProductDTO, user: AuthUser) {
@@ -33,13 +35,17 @@ export class ProductService {
     }
 
     if (user.role !== "MASTER") {
-      const ownsRestaurant = await userOwnsRestaurant(
-        user.id,
+      const restaurant = await findRestaurantByIdForOwner(
         data.restaurant_id,
+        user.id,
       );
 
-      if (!ownsRestaurant) {
+      if (!restaurant) {
         throw new Error("Acesso negado ao restaurante");
+      }
+
+      if (restaurant.status !== "ACTIVE") {
+        throw new Error("Restaurante bloqueado");
       }
     }
 
@@ -102,6 +108,19 @@ export class ProductService {
       throw new Error("Produto não encontrado ou acesso negado");
     }
 
+    const restaurant = await findRestaurantByIdForOwner(
+      product.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
+    }
+
     return product;
   }
 
@@ -114,10 +133,17 @@ export class ProductService {
       return await productRepository.findByRestaurantId(restaurantId);
     }
 
-    const ownsRestaurant = await userOwnsRestaurant(user.id, restaurantId);
+    const restaurant = await findRestaurantByIdForOwner(
+      restaurantId,
+      user.id,
+    );
 
-    if (!ownsRestaurant) {
+    if (!restaurant) {
       throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     return await productRepository.findByRestaurantIdForOwner(
@@ -135,13 +161,26 @@ export class ProductService {
       return await productRepository.findByCategoryId(categoryId);
     }
 
-    const ownsCategory = await productRepository.categoryBelongsToOwner(
+    const category = await categoryRepository.findByIdForOwner(
       categoryId,
       user.id,
     );
 
-    if (!ownsCategory) {
+    if (!category) {
       throw new Error("Acesso negado à categoria");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      category.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     return await productRepository.findByCategoryIdForOwner(
@@ -209,6 +248,19 @@ export class ProductService {
       throw new Error("Produto não encontrado ou acesso negado");
     }
 
+    const restaurant = await findRestaurantByIdForOwner(
+      currentProduct.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
+    }
+
     const nextName = data.name ?? currentProduct.name;
     const nextCategoryId = data.category_id ?? currentProduct.category_id;
 
@@ -238,11 +290,7 @@ export class ProductService {
       }
     }
 
-    const product = await productRepository.updateForOwner(
-      id,
-      user.id,
-      data,
-    );
+    const product = await productRepository.updateForOwner(id, user.id, data);
 
     if (!product) {
       throw new Error("Produto não encontrado ou acesso negado");
@@ -260,6 +308,28 @@ export class ProductService {
       }
 
       return product;
+    }
+
+    const currentProduct = await productRepository.findByIdForOwner(
+      id,
+      user.id,
+    );
+
+    if (!currentProduct) {
+      throw new Error("Produto não encontrado ou acesso negado");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      currentProduct.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     const product = await productRepository.activateForOwner(id, user.id);
@@ -282,6 +352,28 @@ export class ProductService {
       return product;
     }
 
+    const currentProduct = await productRepository.findByIdForOwner(
+      id,
+      user.id,
+    );
+
+    if (!currentProduct) {
+      throw new Error("Produto não encontrado ou acesso negado");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      currentProduct.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
+    }
+
     const product = await productRepository.disableForOwner(id, user.id);
 
     if (!product) {
@@ -302,6 +394,28 @@ export class ProductService {
       return {
         message: "Produto deletado com sucesso",
       };
+    }
+
+    const currentProduct = await productRepository.findByIdForOwner(
+      id,
+      user.id,
+    );
+
+    if (!currentProduct) {
+      throw new Error("Produto não encontrado ou acesso negado");
+    }
+
+    const restaurant = await findRestaurantByIdForOwner(
+      currentProduct.restaurant_id,
+      user.id,
+    );
+
+    if (!restaurant) {
+      throw new Error("Acesso negado ao restaurante");
+    }
+
+    if (restaurant.status !== "ACTIVE") {
+      throw new Error("Restaurante bloqueado");
     }
 
     const product = await productRepository.deleteForOwner(id, user.id);
