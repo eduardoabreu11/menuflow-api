@@ -304,3 +304,26 @@ export async function cancelSubscriptionById(id: string) {
 
   return result.rows[0];
 }
+
+export async function listSubscriptionsWithPaymentsOverdueByDays(
+  daysAfterDueDate: number,
+) {
+  const safeDaysAfterDueDate = Math.max(0, Math.floor(daysAfterDueDate));
+
+  const result = await pool.query<SubscriptionWithOwner>(
+    `${subscriptionWithOwnerSelect}
+     WHERE subscriptions.status <> 'CANCELED'
+       AND EXISTS (
+         SELECT 1
+         FROM payments
+         WHERE payments.subscription_id = subscriptions.id
+           AND payments.gateway_provider = 'ASAAS'
+           AND payments.status IN ('PENDING', 'OVERDUE')
+           AND payments.due_date <= CURRENT_DATE - ($1::int * INTERVAL '1 day')
+       )
+     ORDER BY subscriptions.next_billing_date ASC`,
+    [safeDaysAfterDueDate],
+  );
+
+  return result.rows;
+}

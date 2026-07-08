@@ -2,7 +2,10 @@ import { AppError } from "../utils/AppError.js";
 
 import { findRestaurantById } from "../repositories/restaurantRepository.js";
 
-import { createAsaasChargeForPaymentService } from "./asaas/asaasPaymentService.js";
+import {
+  cancelAsaasChargeForPaymentService,
+  createAsaasChargeForPaymentService,
+} from "./asaas/asaasPaymentService.js";
 
 import {
   findSubscriptionById,
@@ -170,6 +173,10 @@ function ensureNewAsaasPaymentStartsPending(status: PaymentStatus) {
       400,
     );
   }
+}
+
+function isAsaasPayment(payment: Payment) {
+  return payment.gateway_provider === "ASAAS";
 }
 
 function canCreateAsaasChargeForLocalPayment(payment: Payment) {
@@ -737,6 +744,13 @@ export async function markPaymentAsPaidService(
     throw new AppError("Fatura cancelada não pode ser marcada como paga", 400);
   }
 
+  if (isAsaasPayment(payment)) {
+    throw new AppError(
+      "Faturas Asaas devem ser marcadas como pagas automaticamente pelo webhook do Asaas",
+      400,
+    );
+  }
+
   return markPaymentAsPaidById(id, paidAt);
 }
 
@@ -755,6 +769,10 @@ export async function cancelPaymentService(id: string) {
     throw new AppError("Fatura já está cancelada", 400);
   }
 
+  if (isAsaasPayment(payment)) {
+    await cancelAsaasChargeForPaymentService(id);
+  }
+
   return cancelPaymentById(id);
 }
 
@@ -767,6 +785,13 @@ export async function deletePaymentService(id: string) {
 
   if (payment.status === "PAID") {
     throw new AppError("Fatura paga não pode ser excluída", 400);
+  }
+
+  if (isAsaasPayment(payment) && payment.status !== "CANCELED") {
+    throw new AppError(
+      "Cancele a cobrança Asaas antes de excluir esta fatura",
+      400,
+    );
   }
 
   return deletePaymentById(id);

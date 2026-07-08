@@ -11,6 +11,8 @@ import {
 
 import { updateSubscriptionById } from "../../repositories/subscriptionRepository.js";
 
+import { activateRestaurantsByOwnerUserId } from "../../repositories/restaurantRepository.js";
+
 type AsaasWebhookPayment = {
   id?: string;
   status?: string;
@@ -162,7 +164,7 @@ function isCanceledEvent(event: string, asaasPayment: AsaasWebhookPayment) {
   );
 }
 
-function isRefusedEvent(event: string, asaasPayment: AsaasWebhookPayment) {
+function isRefusedEvent(event: string, _asaasPayment: AsaasWebhookPayment) {
   return refusedEvents.has(event);
 }
 
@@ -190,7 +192,9 @@ async function markLocalPaymentAsPaid(
 ) {
   const paidAt = getPaidAtFromAsaasPayment(asaasPayment) ?? getTodayDate();
   const paidAtDate = normalizeDate(paidAt);
-  const nextBillingDate = addOneMonth(paidAtDate);
+
+  const paymentDueDate = normalizeDate(payment.due_date);
+  const nextBillingDate = addOneMonth(paymentDueDate);
 
   const updatedPayment =
     payment.status === "PAID"
@@ -202,6 +206,8 @@ async function markLocalPaymentAsPaid(
     started_at: paidAtDate,
     next_billing_date: nextBillingDate,
   });
+
+  await activateRestaurantsByOwnerUserId(payment.owner_user_id);
 
   return updatedPayment;
 }

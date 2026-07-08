@@ -301,3 +301,35 @@ export async function userOwnsRestaurant(userId: string, restaurantId: string) {
 
   return Boolean(result.rows[0]);
 }
+
+export async function blockRestaurantsByOwnerUserId(ownerUserId: string) {
+  const result = await pool.query(
+    `
+    UPDATE restaurants
+    SET status = 'BLOCKED',
+        updated_at = NOW()
+    WHERE owner_user_id = $1
+      AND status = 'ACTIVE'
+    RETURNING *
+    `,
+    [ownerUserId],
+  );
+
+  return result.rows;
+}
+
+export async function activateRestaurantsByOwnerUserId(ownerUserId: string) {
+  const result = await pool.query(
+    `
+    UPDATE restaurants
+    SET status = 'ACTIVE',
+        updated_at = NOW()
+    WHERE owner_user_id = $1
+      AND status = 'BLOCKED'
+    RETURNING *
+    `,
+    [ownerUserId],
+  );
+
+  return result.rows;
+}
