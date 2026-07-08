@@ -5,6 +5,8 @@ import { requireRole } from "../middlewares/requireRole.js";
 import { validateRequest } from "../middlewares/validateRequest.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
+import { handleAsaasWebhook } from "../controllers/asaasWebhookController.js";
+
 import {
   createProductBodySchema,
   updateProductBodySchema,
@@ -156,6 +158,12 @@ router.get(
   }),
   asyncHandler((req, res) => publicMenuController.show(req, res)),
 );
+
+/* =========================
+   ASAAS WEBHOOK
+========================= */
+
+router.post("/webhooks/asaas", asyncHandler(handleAsaasWebhook));
 
 /* =========================
    USERS - MASTER
