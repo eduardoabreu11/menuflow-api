@@ -12,6 +12,7 @@ import {
   listPaymentsService,
   markPaymentAsPaidService,
   updatePaymentService,
+  generateMonthlyPaymentsService,
 } from "../services/paymentService.js";
 
 import {
@@ -21,6 +22,7 @@ import {
   paymentRestaurantIdParamsSchema,
   paymentSubscriptionIdParamsSchema,
   updatePaymentBodySchema,
+  generateMonthlyPaymentsBodySchema,
 } from "../validations/paymentValidation.js";
 
 export const listPaymentsController = asyncHandler(
@@ -60,6 +62,16 @@ export const getPaymentsBySubscriptionIdController = asyncHandler(
     const payments = await getPaymentsBySubscriptionIdService(subscription_id);
 
     return res.status(200).json(payments);
+  },
+);
+
+export const generateMonthlyPaymentsController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const data = generateMonthlyPaymentsBodySchema.parse(req.body);
+
+    const result = await generateMonthlyPaymentsService(data);
+
+    return res.status(201).json(result);
   },
 );
 

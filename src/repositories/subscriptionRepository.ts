@@ -21,19 +21,19 @@ export type SubscriptionWithRestaurant = Subscription & {
 
 type CreateSubscriptionData = {
   restaurant_id: string;
-  status?: SubscriptionStatus;
-  plan_name?: string;
+  status?: SubscriptionStatus | undefined;
+  plan_name?: string | undefined;
   monthly_price: number;
-  started_at?: string;
+  started_at?: string | undefined;
   next_billing_date: string;
 };
 
 type UpdateSubscriptionData = {
-  status?: SubscriptionStatus;
-  plan_name?: string;
-  monthly_price?: number;
-  started_at?: string;
-  next_billing_date?: string;
+  status?: SubscriptionStatus | undefined;
+  plan_name?: string | undefined;
+  monthly_price?: number | undefined;
+  started_at?: string | undefined;
+  next_billing_date?: string | undefined;
 };
 
 const subscriptionSelect = `
@@ -71,6 +71,18 @@ export async function listSubscriptions() {
   const result = await pool.query<SubscriptionWithRestaurant>(
     `${subscriptionWithRestaurantSelect}
      ORDER BY subscriptions.created_at DESC`,
+  );
+
+  return result.rows;
+}
+
+export async function listActiveSubscriptionsReadyForBilling(upToDate: string) {
+  const result = await pool.query<SubscriptionWithRestaurant>(
+    `${subscriptionWithRestaurantSelect}
+     WHERE subscriptions.status = 'ACTIVE'
+       AND subscriptions.next_billing_date <= $1::date
+     ORDER BY subscriptions.next_billing_date ASC`,
+    [upToDate],
   );
 
   return result.rows;
@@ -184,6 +196,31 @@ export async function updateSubscriptionById(
        created_at,
        updated_at`,
     values,
+  );
+
+  return result.rows[0];
+}
+
+export async function updateSubscriptionNextBillingDateById(
+  id: string,
+  nextBillingDate: string,
+) {
+  const result = await pool.query<Subscription>(
+    `UPDATE subscriptions
+     SET next_billing_date = $2::date,
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING
+       id,
+       restaurant_id,
+       status,
+       plan_name,
+       monthly_price::float AS monthly_price,
+       started_at::text AS started_at,
+       next_billing_date::text AS next_billing_date,
+       created_at,
+       updated_at`,
+    [id, nextBillingDate],
   );
 
   return result.rows[0];

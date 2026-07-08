@@ -26,13 +26,13 @@ type CreatePaymentData = {
   subscription_id: string;
   amount: number;
   due_date: string;
-  status?: PaymentStatus;
+  status?: PaymentStatus | undefined;
 };
 
 type UpdatePaymentData = {
-  amount?: number;
-  due_date?: string;
-  status?: PaymentStatus;
+  amount?: number | undefined;
+  due_date?: string | undefined;
+  status?: PaymentStatus | undefined;
 };
 
 const paymentSelect = `
@@ -110,16 +110,53 @@ export async function findPaymentsBySubscriptionId(subscriptionId: string) {
   return result.rows;
 }
 
+export async function findActivePaymentBySubscriptionAndBillingMonth(
+  subscriptionId: string,
+  dueDate: string,
+  ignoredPaymentId?: string,
+) {
+  const values: unknown[] = [subscriptionId, dueDate];
+
+  let query = `
+    ${paymentSelect}
+    WHERE subscription_id = $1
+      AND EXTRACT(YEAR FROM due_date) = EXTRACT(YEAR FROM $2::date)
+      AND EXTRACT(MONTH FROM due_date) = EXTRACT(MONTH FROM $2::date)
+      AND status <> 'CANCELED'
+  `;
+
+  if (ignoredPaymentId) {
+    values.push(ignoredPaymentId);
+    query += ` AND id <> $${values.length}`;
+  }
+
+  query += ` LIMIT 1`;
+
+  const result = await pool.query<Payment>(query, values);
+
+  return result.rows[0];
+}
+
 export async function createPayment(data: CreatePaymentData) {
+  const status = data.status ?? "PENDING";
+
   const result = await pool.query<Payment>(
     `INSERT INTO payments (
        restaurant_id,
        subscription_id,
        amount,
        due_date,
-       status
+       status,
+       paid_at
      )
-     VALUES ($1, $2, $3, $4, $5)
+     VALUES (
+       $1,
+       $2,
+       $3,
+       $4,
+       $5::varchar,
+       CASE WHEN $5::varchar = 'PAID' THEN NOW() ELSE NULL END
+     )
      RETURNING
        id,
        restaurant_id,
@@ -135,7 +172,7 @@ export async function createPayment(data: CreatePaymentData) {
       data.subscription_id,
       data.amount,
       data.due_date,
-      data.status ?? "PENDING",
+      status,
     ],
   );
 

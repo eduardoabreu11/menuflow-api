@@ -59,6 +59,7 @@ import {
   paymentRestaurantIdParamsSchema,
   paymentSubscriptionIdParamsSchema,
   updatePaymentBodySchema,
+  generateMonthlyPaymentsBodySchema,
 } from "../validations/paymentValidation.js";
 
 import {
@@ -112,6 +113,7 @@ import {
   listPaymentsController,
   markPaymentAsPaidController,
   updatePaymentController,
+  generateMonthlyPaymentsController,
 } from "../controllers/paymentController.js";
 
 import { CategoryController } from "../controllers/categoryController.js";
@@ -484,6 +486,16 @@ router.patch(
     body: updatePaymentBodySchema,
   }),
   updatePaymentController,
+);
+
+router.post(
+  "/payments/generate-monthly",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    body: generateMonthlyPaymentsBodySchema,
+  }),
+  generateMonthlyPaymentsController,
 );
 
 router.patch(

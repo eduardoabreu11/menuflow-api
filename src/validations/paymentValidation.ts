@@ -67,3 +67,9 @@ export const markPaymentAsPaidBodySchema = z
       .optional(),
   })
   .strict();
+
+  export const generateMonthlyPaymentsBodySchema = z
+  .object({
+    up_to_date: dateSchema.optional(),
+  })
+  .strict();
