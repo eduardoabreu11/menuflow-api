@@ -83,6 +83,7 @@ export const markPaymentAsPaidBodySchema = z
 export const generateMonthlyPaymentsBodySchema = z
   .object({
     up_to_date: dateSchema.optional(),
+    create_asaas_charges: z.boolean().optional().default(false),
   })
   .strict();
 

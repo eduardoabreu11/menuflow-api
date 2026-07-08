@@ -2,6 +2,8 @@ import { AppError } from "../utils/AppError.js";
 
 import { findRestaurantById } from "../repositories/restaurantRepository.js";
 
+import { createAsaasChargeForPaymentService } from "./asaas/asaasPaymentService.js";
+
 import {
   findSubscriptionById,
   findSubscriptionByOwnerUserId,
@@ -42,7 +44,14 @@ type UpdatePaymentData = {
 
 type GenerateMonthlyPaymentsOptions = {
   up_to_date?: string | undefined;
+  create_asaas_charges?: boolean | undefined;
 };
+
+type AsaasChargeStatus =
+  | "NOT_REQUESTED"
+  | "GENERATED"
+  | "SKIPPED"
+  | "FAILED";
 
 type GeneratedPaymentSummary = {
   subscription_id: string;
@@ -53,7 +62,15 @@ type GeneratedPaymentSummary = {
   next_billing_date: string;
   payment: Payment | null;
   status: "GENERATED" | "SKIPPED";
-  reason?: string;
+  reason?: string | undefined;
+  asaas_charge_status?: AsaasChargeStatus | undefined;
+  asaas_charge_error?: string | undefined;
+};
+
+type AsaasChargeAttemptResult = {
+  payment: Payment;
+  status: AsaasChargeStatus;
+  error?: string | undefined;
 };
 
 function isDatabaseUniqueError(error: unknown) {
@@ -63,6 +80,14 @@ function isDatabaseUniqueError(error: unknown) {
     "code" in error &&
     error.code === "23505"
   );
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Erro desconhecido";
 }
 
 function validateInitialPaymentStatus(status: PaymentStatus) {
@@ -126,6 +151,51 @@ function ensureCreatedPayment(payment: Payment | undefined) {
   }
 
   return payment;
+}
+
+function canCreateAsaasChargeForLocalPayment(payment: Payment) {
+  return (
+    payment.status === "PENDING" &&
+    payment.gateway_provider !== "ASAAS" &&
+    !payment.gateway_payment_id
+  );
+}
+
+async function maybeCreateAsaasChargeForPayment(
+  payment: Payment,
+  shouldCreateAsaasCharges: boolean,
+): Promise<AsaasChargeAttemptResult> {
+  if (!shouldCreateAsaasCharges) {
+    return {
+      payment,
+      status: "NOT_REQUESTED",
+    };
+  }
+
+  if (!canCreateAsaasChargeForLocalPayment(payment)) {
+    return {
+      payment,
+      status: "SKIPPED",
+      error: "Fatura não está pendente ou já possui cobrança Asaas vinculada",
+    };
+  }
+
+  try {
+    const asaasResult = await createAsaasChargeForPaymentService(payment.id, {
+      billingType: "UNDEFINED",
+    });
+
+    return {
+      payment: ensureCreatedPayment(asaasResult.payment),
+      status: "GENERATED",
+    };
+  } catch (error) {
+    return {
+      payment,
+      status: "FAILED",
+      error: getErrorMessage(error),
+    };
+  }
 }
 
 async function ensurePaymentIsNotDuplicated(
@@ -372,6 +442,7 @@ export async function generateMonthlyPaymentsService(
   options: GenerateMonthlyPaymentsOptions = {},
 ) {
   const upToDate = options.up_to_date ?? getTodayDate();
+  const shouldCreateAsaasCharges = options.create_asaas_charges === true;
 
   const subscriptions = await listActiveSubscriptionsReadyForBilling(upToDate);
 
@@ -388,6 +459,11 @@ export async function generateMonthlyPaymentsService(
       );
 
     if (existingPayment) {
+      const asaasAttempt = await maybeCreateAsaasChargeForPayment(
+        existingPayment,
+        shouldCreateAsaasCharges,
+      );
+
       await updateSubscriptionNextBillingDateById(
         subscription.id,
         nextBillingDate,
@@ -400,10 +476,12 @@ export async function generateMonthlyPaymentsService(
         owner_email: subscription.owner_email,
         due_date: dueDate,
         next_billing_date: nextBillingDate,
-        payment: null,
+        payment: asaasAttempt.payment,
         status: "SKIPPED",
         reason:
           "Já existia uma fatura não cancelada para esta assinatura neste mês",
+        asaas_charge_status: asaasAttempt.status,
+        asaas_charge_error: asaasAttempt.error,
       });
 
       continue;
@@ -421,6 +499,11 @@ export async function generateMonthlyPaymentsService(
 
       const createdPayment = ensureCreatedPayment(payment);
 
+      const asaasAttempt = await maybeCreateAsaasChargeForPayment(
+        createdPayment,
+        shouldCreateAsaasCharges,
+      );
+
       await updateSubscriptionNextBillingDateById(
         subscription.id,
         nextBillingDate,
@@ -433,8 +516,10 @@ export async function generateMonthlyPaymentsService(
         owner_email: subscription.owner_email,
         due_date: dueDate,
         next_billing_date: nextBillingDate,
-        payment: createdPayment,
+        payment: asaasAttempt.payment,
         status: "GENERATED",
+        asaas_charge_status: asaasAttempt.status,
+        asaas_charge_error: asaasAttempt.error,
       });
     } catch (error) {
       if (isDatabaseUniqueError(error)) {
@@ -454,6 +539,9 @@ export async function generateMonthlyPaymentsService(
           status: "SKIPPED",
           reason:
             "Já existia uma fatura não cancelada para esta assinatura neste mês",
+          asaas_charge_status: shouldCreateAsaasCharges
+            ? "SKIPPED"
+            : "NOT_REQUESTED",
         });
 
         continue;
@@ -469,11 +557,27 @@ export async function generateMonthlyPaymentsService(
 
   const skipped = summaries.filter((summary) => summary.status === "SKIPPED");
 
+  const asaasGenerated = summaries.filter(
+    (summary) => summary.asaas_charge_status === "GENERATED",
+  );
+
+  const asaasFailed = summaries.filter(
+    (summary) => summary.asaas_charge_status === "FAILED",
+  );
+
+  const asaasSkipped = summaries.filter(
+    (summary) => summary.asaas_charge_status === "SKIPPED",
+  );
+
   return {
     up_to_date: upToDate,
+    create_asaas_charges: shouldCreateAsaasCharges,
     total_subscriptions_ready: subscriptions.length,
     generated_count: generated.length,
     skipped_count: skipped.length,
+    asaas_generated_count: asaasGenerated.length,
+    asaas_failed_count: asaasFailed.length,
+    asaas_skipped_count: asaasSkipped.length,
     summaries,
   };
 }
