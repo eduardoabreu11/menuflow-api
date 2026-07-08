@@ -54,7 +54,12 @@ export const createPaymentBodySchema = z
 
     due_date: dateSchema,
 
-    status: paymentStatusSchema.optional(),
+    // Nova fatura de assinatura deve nascer pendente.
+    // Pagamento real vem pelo webhook do Asaas.
+    status: z.literal("PENDING").optional().default("PENDING"),
+
+    // Regra oficial: nova fatura precisa gerar cobrança Asaas.
+    create_asaas_charge: z.literal(true).optional().default(true),
   })
   .strict();
 
@@ -83,7 +88,9 @@ export const markPaymentAsPaidBodySchema = z
 export const generateMonthlyPaymentsBodySchema = z
   .object({
     up_to_date: dateSchema.optional(),
-    create_asaas_charges: z.boolean().optional().default(false),
+
+    // Regra oficial: gerar mensalidade também cria cobrança no Asaas.
+    create_asaas_charges: z.literal(true).optional().default(true),
   })
   .strict();
 

@@ -34,6 +34,7 @@ type CreatePaymentData = {
   amount: number;
   due_date: string;
   status?: PaymentStatus | undefined;
+  create_asaas_charge?: boolean | undefined;
 };
 
 type UpdatePaymentData = {
@@ -153,12 +154,59 @@ function ensureCreatedPayment(payment: Payment | undefined) {
   return payment;
 }
 
+function ensureNewPaymentMustUseAsaas(createAsaasCharge?: boolean) {
+  if (createAsaasCharge === false) {
+    throw new AppError(
+      "Nova fatura de assinatura deve gerar cobrança no Asaas",
+      400,
+    );
+  }
+}
+
+function ensureNewAsaasPaymentStartsPending(status: PaymentStatus) {
+  if (status !== "PENDING") {
+    throw new AppError(
+      "Nova fatura com cobrança Asaas deve iniciar como PENDING",
+      400,
+    );
+  }
+}
+
 function canCreateAsaasChargeForLocalPayment(payment: Payment) {
   return (
     payment.status === "PENDING" &&
     payment.gateway_provider !== "ASAAS" &&
     !payment.gateway_payment_id
   );
+}
+
+async function deleteLocalPaymentAfterAsaasFailure(payment: Payment) {
+  try {
+    await deletePaymentById(payment.id);
+  } catch {
+    // Mantém o erro original do Asaas.
+  }
+}
+
+async function createRequiredAsaasChargeForPayment(payment: Payment) {
+  if (!canCreateAsaasChargeForLocalPayment(payment)) {
+    throw new AppError(
+      "Fatura não está pendente ou já possui cobrança Asaas vinculada",
+      400,
+    );
+  }
+
+  try {
+    const asaasResult = await createAsaasChargeForPaymentService(payment.id, {
+      billingType: "UNDEFINED",
+    });
+
+    return ensureCreatedPayment(asaasResult.payment);
+  } catch (error) {
+    await deleteLocalPaymentAfterAsaasFailure(payment);
+
+    throw error;
+  }
 }
 
 async function maybeCreateAsaasChargeForPayment(
@@ -261,6 +309,8 @@ export async function createPaymentService(data: CreatePaymentData) {
   const initialStatus = data.status ?? "PENDING";
 
   validateInitialPaymentStatus(initialStatus);
+  ensureNewPaymentMustUseAsaas(data.create_asaas_charge);
+  ensureNewAsaasPaymentStartsPending(initialStatus);
 
   const subscription = await findSubscriptionById(data.subscription_id);
 
@@ -315,7 +365,9 @@ export async function createPaymentService(data: CreatePaymentData) {
       status: initialStatus,
     });
 
-    return ensureCreatedPayment(payment);
+    const createdPayment = ensureCreatedPayment(payment);
+
+    return createRequiredAsaasChargeForPayment(createdPayment);
   } catch (error) {
     if (isDatabaseUniqueError(error)) {
       throw new AppError(
@@ -341,6 +393,7 @@ export async function createPaymentForRestaurantService(data: {
   const initialStatus = data.status ?? "PENDING";
 
   validateInitialPaymentStatus(initialStatus);
+  ensureNewAsaasPaymentStartsPending(initialStatus);
 
   const restaurant = await findRestaurantById(data.restaurant_id);
 
@@ -373,7 +426,9 @@ export async function createPaymentForRestaurantService(data: {
       status: initialStatus,
     });
 
-    return ensureCreatedPayment(payment);
+    const createdPayment = ensureCreatedPayment(payment);
+
+    return createRequiredAsaasChargeForPayment(createdPayment);
   } catch (error) {
     if (isDatabaseUniqueError(error)) {
       throw new AppError(
@@ -399,6 +454,7 @@ export async function createPaymentForOwnerService(data: {
   const initialStatus = data.status ?? "PENDING";
 
   validateInitialPaymentStatus(initialStatus);
+  ensureNewAsaasPaymentStartsPending(initialStatus);
 
   const subscription = await findSubscriptionByOwnerUserId(data.owner_user_id);
 
@@ -425,7 +481,9 @@ export async function createPaymentForOwnerService(data: {
       status: initialStatus,
     });
 
-    return ensureCreatedPayment(payment);
+    const createdPayment = ensureCreatedPayment(payment);
+
+    return createRequiredAsaasChargeForPayment(createdPayment);
   } catch (error) {
     if (isDatabaseUniqueError(error)) {
       throw new AppError(
@@ -442,7 +500,7 @@ export async function generateMonthlyPaymentsService(
   options: GenerateMonthlyPaymentsOptions = {},
 ) {
   const upToDate = options.up_to_date ?? getTodayDate();
-  const shouldCreateAsaasCharges = options.create_asaas_charges === true;
+  const shouldCreateAsaasCharges = options.create_asaas_charges !== false;
 
   const subscriptions = await listActiveSubscriptionsReadyForBilling(upToDate);
 

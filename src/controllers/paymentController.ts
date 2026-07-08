@@ -83,15 +83,14 @@ export const createPaymentController = asyncHandler(
     const data = createPaymentBodySchema.parse(req.body);
 
     const paymentData: Parameters<typeof createPaymentService>[0] = {
+      owner_user_id: data.owner_user_id,
       restaurant_id: data.restaurant_id,
       subscription_id: data.subscription_id,
       amount: data.amount,
       due_date: data.due_date,
+      status: data.status,
+      create_asaas_charge: data.create_asaas_charge,
     };
-
-    if (data.status !== undefined) {
-      paymentData.status = data.status;
-    }
 
     const payment = await createPaymentService(paymentData);
 
