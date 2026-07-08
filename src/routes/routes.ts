@@ -60,6 +60,8 @@ import {
   paymentSubscriptionIdParamsSchema,
   updatePaymentBodySchema,
   generateMonthlyPaymentsBodySchema,
+  createAsaasChargeBodySchema,
+  
 } from "../validations/paymentValidation.js";
 
 import {
@@ -114,6 +116,7 @@ import {
   markPaymentAsPaidController,
   updatePaymentController,
   generateMonthlyPaymentsController,
+  createAsaasChargeForPaymentController,
 } from "../controllers/paymentController.js";
 
 import { CategoryController } from "../controllers/categoryController.js";
@@ -527,6 +530,17 @@ router.delete(
     params: paymentIdParamsSchema,
   }),
   deletePaymentController,
+);
+
+router.post(
+  "/payments/:id/asaas-charge",
+  authMiddleware,
+  requireRole("MASTER"),
+  validateRequest({
+    params: paymentIdParamsSchema,
+    body: createAsaasChargeBodySchema,
+  }),
+  createAsaasChargeForPaymentController,
 );
 
 /* =========================

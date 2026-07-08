@@ -4,23 +4,23 @@ export type CreateRestaurantData = {
   owner_user_id: string;
   name: string;
   slug: string;
-  description?: string;
-  logo_url?: string;
-  whatsapp?: string;
-  phone?: string;
-  address?: string;
-  opening_hours?: string;
+  description?: string | undefined;
+  logo_url?: string | undefined;
+  whatsapp?: string | undefined;
+  phone?: string | undefined;
+  address?: string | undefined;
+  opening_hours?: string | undefined;
 };
 
 export type UpdateRestaurantData = {
   name: string;
   slug: string;
-  description?: string;
-  logo_url?: string;
-  whatsapp?: string;
-  phone?: string;
-  address?: string;
-  opening_hours?: string;
+  description?: string | undefined;
+  logo_url?: string | undefined;
+  whatsapp?: string | undefined;
+  phone?: string | undefined;
+  address?: string | undefined;
+  opening_hours?: string | undefined;
 };
 
 export async function listRestaurants() {
@@ -101,6 +101,19 @@ export async function findRestaurantBySlug(slug: string) {
     WHERE slug = $1
     `,
     [slug],
+  );
+
+  return result.rows[0];
+}
+
+export async function findRestaurantByAsaasCustomerId(asaasCustomerId: string) {
+  const result = await pool.query(
+    `
+    SELECT *
+    FROM restaurants
+    WHERE asaas_customer_id = $1
+    `,
+    [asaasCustomerId],
   );
 
   return result.rows[0];
@@ -209,6 +222,24 @@ export async function updateRestaurantForOwner(
       id,
       ownerUserId,
     ],
+  );
+
+  return result.rows[0];
+}
+
+export async function updateRestaurantAsaasCustomerId(
+  id: string,
+  asaasCustomerId: string,
+) {
+  const result = await pool.query(
+    `
+    UPDATE restaurants
+    SET asaas_customer_id = $2,
+        updated_at = NOW()
+    WHERE id = $1
+    RETURNING *
+    `,
+    [id, asaasCustomerId],
   );
 
   return result.rows[0];

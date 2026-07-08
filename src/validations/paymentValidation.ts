@@ -7,6 +7,13 @@ const paymentStatusSchema = z.enum([
   "CANCELED",
 ]);
 
+const billingTypeSchema = z.enum([
+  "BOLETO",
+  "PIX",
+  "CREDIT_CARD",
+  "UNDEFINED",
+]);
+
 const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato YYYY-MM-DD");
@@ -31,11 +38,19 @@ export const paymentSubscriptionIdParamsSchema = z
 
 export const createPaymentBodySchema = z
   .object({
-    restaurant_id: z.string().uuid("ID do restaurante inválido"),
+    owner_user_id: z.string().uuid("ID do cliente/dono inválido").optional(),
+
+    restaurant_id: z
+      .string()
+      .uuid("ID do restaurante inválido")
+      .nullable()
+      .optional(),
 
     subscription_id: z.string().uuid("ID da assinatura inválido"),
 
-    amount: z.coerce.number().min(0, "Valor da fatura não pode ser negativo"),
+    amount: z.coerce
+      .number()
+      .positive("Valor da fatura deve ser maior que zero"),
 
     due_date: dateSchema,
 
@@ -47,7 +62,7 @@ export const updatePaymentBodySchema = z
   .object({
     amount: z.coerce
       .number()
-      .min(0, "Valor da fatura não pode ser negativo")
+      .positive("Valor da fatura deve ser maior que zero")
       .optional(),
 
     due_date: dateSchema.optional(),
@@ -61,15 +76,18 @@ export const updatePaymentBodySchema = z
 
 export const markPaymentAsPaidBodySchema = z
   .object({
-    paid_at: z
-      .string()
-      .datetime("Data de pagamento inválida")
-      .optional(),
+    paid_at: z.string().datetime("Data de pagamento inválida").optional(),
   })
   .strict();
 
-  export const generateMonthlyPaymentsBodySchema = z
+export const generateMonthlyPaymentsBodySchema = z
   .object({
     up_to_date: dateSchema.optional(),
+  })
+  .strict();
+
+export const createAsaasChargeBodySchema = z
+  .object({
+    billing_type: billingTypeSchema.optional(),
   })
   .strict();

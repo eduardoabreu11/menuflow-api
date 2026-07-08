@@ -15,6 +15,8 @@ import {
   generateMonthlyPaymentsService,
 } from "../services/paymentService.js";
 
+import { createAsaasChargeForPaymentService } from "../services/asaas/asaasPaymentService.js";
+
 import {
   createPaymentBodySchema,
   markPaymentAsPaidBodySchema,
@@ -23,6 +25,7 @@ import {
   paymentSubscriptionIdParamsSchema,
   updatePaymentBodySchema,
   generateMonthlyPaymentsBodySchema,
+  createAsaasChargeBodySchema,
 } from "../validations/paymentValidation.js";
 
 export const listPaymentsController = asyncHandler(
@@ -118,6 +121,19 @@ export const updatePaymentController = asyncHandler(
     const payment = await updatePaymentService(id, paymentData);
 
     return res.status(200).json(payment);
+  },
+);
+
+export const createAsaasChargeForPaymentController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const params = paymentIdParamsSchema.parse(req.params);
+    const body = createAsaasChargeBodySchema.parse(req.body);
+
+    const result = await createAsaasChargeForPaymentService(params.id, {
+      billingType: body.billing_type ?? "UNDEFINED",
+    });
+
+    return res.status(201).json(result);
   },
 );
 

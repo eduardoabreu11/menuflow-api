@@ -4,7 +4,8 @@ export type SubscriptionStatus = "ACTIVE" | "PENDING" | "OVERDUE" | "CANCELED";
 
 export type Subscription = {
   id: string;
-  restaurant_id: string;
+  owner_user_id: string;
+  restaurant_id: string | null;
   status: SubscriptionStatus;
   plan_name: string;
   monthly_price: number;
@@ -14,13 +15,19 @@ export type Subscription = {
   updated_at: Date;
 };
 
-export type SubscriptionWithRestaurant = Subscription & {
+export type SubscriptionWithOwner = Subscription & {
+  owner_name: string;
+  owner_email: string;
+  total_restaurants: number;
+
+  // Mantido por compatibilidade temporária com o frontend antigo
   restaurant_name: string;
   restaurant_slug: string;
 };
 
 type CreateSubscriptionData = {
-  restaurant_id: string;
+  owner_user_id?: string | undefined;
+  restaurant_id?: string | undefined;
   status?: SubscriptionStatus | undefined;
   plan_name?: string | undefined;
   monthly_price: number;
@@ -39,6 +46,7 @@ type UpdateSubscriptionData = {
 const subscriptionSelect = `
   SELECT
     id,
+    owner_user_id,
     restaurant_id,
     status,
     plan_name,
@@ -50,9 +58,10 @@ const subscriptionSelect = `
   FROM subscriptions
 `;
 
-const subscriptionWithRestaurantSelect = `
+const subscriptionWithOwnerSelect = `
   SELECT
     subscriptions.id,
+    subscriptions.owner_user_id,
     subscriptions.restaurant_id,
     subscriptions.status,
     subscriptions.plan_name,
@@ -61,15 +70,22 @@ const subscriptionWithRestaurantSelect = `
     subscriptions.next_billing_date::text AS next_billing_date,
     subscriptions.created_at,
     subscriptions.updated_at,
-    restaurants.name AS restaurant_name,
-    restaurants.slug AS restaurant_slug
+    users.name AS owner_name,
+    users.email AS owner_email,
+    users.name AS restaurant_name,
+    users.email AS restaurant_slug,
+    (
+      SELECT COUNT(*)::int
+      FROM restaurants
+      WHERE restaurants.owner_user_id = users.id
+    ) AS total_restaurants
   FROM subscriptions
-  INNER JOIN restaurants ON restaurants.id = subscriptions.restaurant_id
+  INNER JOIN users ON users.id = subscriptions.owner_user_id
 `;
 
 export async function listSubscriptions() {
-  const result = await pool.query<SubscriptionWithRestaurant>(
-    `${subscriptionWithRestaurantSelect}
+  const result = await pool.query<SubscriptionWithOwner>(
+    `${subscriptionWithOwnerSelect}
      ORDER BY subscriptions.created_at DESC`,
   );
 
@@ -77,8 +93,8 @@ export async function listSubscriptions() {
 }
 
 export async function listActiveSubscriptionsReadyForBilling(upToDate: string) {
-  const result = await pool.query<SubscriptionWithRestaurant>(
-    `${subscriptionWithRestaurantSelect}
+  const result = await pool.query<SubscriptionWithOwner>(
+    `${subscriptionWithOwnerSelect}
      WHERE subscriptions.status = 'ACTIVE'
        AND subscriptions.next_billing_date <= $1::date
      ORDER BY subscriptions.next_billing_date ASC`,
@@ -98,10 +114,30 @@ export async function findSubscriptionById(id: string) {
   return result.rows[0];
 }
 
+export async function findSubscriptionByOwnerUserId(ownerUserId: string) {
+  const result = await pool.query<Subscription>(
+    `${subscriptionSelect}
+     WHERE owner_user_id = $1
+       AND status <> 'CANCELED'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [ownerUserId],
+  );
+
+  return result.rows[0];
+}
+
 export async function findSubscriptionByRestaurantId(restaurantId: string) {
   const result = await pool.query<Subscription>(
     `${subscriptionSelect}
-     WHERE restaurant_id = $1`,
+     WHERE owner_user_id = (
+       SELECT owner_user_id
+       FROM restaurants
+       WHERE id = $1
+     )
+       AND status <> 'CANCELED'
+     ORDER BY created_at DESC
+     LIMIT 1`,
     [restaurantId],
   );
 
@@ -111,6 +147,7 @@ export async function findSubscriptionByRestaurantId(restaurantId: string) {
 export async function createSubscription(data: CreateSubscriptionData) {
   const result = await pool.query<Subscription>(
     `INSERT INTO subscriptions (
+       owner_user_id,
        restaurant_id,
        status,
        plan_name,
@@ -118,9 +155,25 @@ export async function createSubscription(data: CreateSubscriptionData) {
        started_at,
        next_billing_date
      )
-     VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE), $6)
+     VALUES (
+       COALESCE(
+         $1::uuid,
+         (
+           SELECT owner_user_id
+           FROM restaurants
+           WHERE id = $2::uuid
+         )
+       ),
+       $2::uuid,
+       $3,
+       $4,
+       $5,
+       COALESCE($6, CURRENT_DATE),
+       $7
+     )
      RETURNING
        id,
+       owner_user_id,
        restaurant_id,
        status,
        plan_name,
@@ -130,9 +183,10 @@ export async function createSubscription(data: CreateSubscriptionData) {
        created_at,
        updated_at`,
     [
-      data.restaurant_id,
+      data.owner_user_id ?? null,
+      data.restaurant_id ?? null,
       data.status ?? "PENDING",
-      data.plan_name?.trim() || "MenuFlow Completo",
+      data.plan_name?.trim() || "Serviu Completo",
       data.monthly_price,
       data.started_at ?? null,
       data.next_billing_date,
@@ -187,6 +241,7 @@ export async function updateSubscriptionById(
      WHERE id = $${values.length}
      RETURNING
        id,
+       owner_user_id,
        restaurant_id,
        status,
        plan_name,
@@ -212,6 +267,7 @@ export async function updateSubscriptionNextBillingDateById(
      WHERE id = $1
      RETURNING
        id,
+       owner_user_id,
        restaurant_id,
        status,
        plan_name,
@@ -234,6 +290,7 @@ export async function cancelSubscriptionById(id: string) {
      WHERE id = $1
      RETURNING
        id,
+       owner_user_id,
        restaurant_id,
        status,
        plan_name,

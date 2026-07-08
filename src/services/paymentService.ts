@@ -4,6 +4,7 @@ import { findRestaurantById } from "../repositories/restaurantRepository.js";
 
 import {
   findSubscriptionById,
+  findSubscriptionByOwnerUserId,
   findSubscriptionByRestaurantId,
   listActiveSubscriptionsReadyForBilling,
   updateSubscriptionNextBillingDateById,
@@ -25,7 +26,8 @@ import {
 } from "../repositories/paymentRepository.js";
 
 type CreatePaymentData = {
-  restaurant_id: string;
+  owner_user_id?: string | undefined;
+  restaurant_id?: string | null | undefined;
   subscription_id: string;
   amount: number;
   due_date: string;
@@ -44,8 +46,9 @@ type GenerateMonthlyPaymentsOptions = {
 
 type GeneratedPaymentSummary = {
   subscription_id: string;
-  restaurant_id: string;
-  restaurant_name: string;
+  owner_user_id: string;
+  owner_name: string;
+  owner_email: string;
   due_date: string;
   next_billing_date: string;
   payment: Payment | null;
@@ -64,7 +67,10 @@ function isDatabaseUniqueError(error: unknown) {
 
 function validateInitialPaymentStatus(status: PaymentStatus) {
   if (status !== "PENDING" && status !== "PAID") {
-    throw new AppError("Status inicial da fatura deve ser PENDING ou PAID", 400);
+    throw new AppError(
+      "Status inicial da fatura deve ser PENDING ou PAID",
+      400,
+    );
   }
 }
 
@@ -105,11 +111,7 @@ function addOneMonth(date: string) {
   const normalizedTargetMonthZeroBased = targetMonthZeroBased % 12;
   const targetMonth = normalizedTargetMonthZeroBased + 1;
 
-  const lastDayOfTargetMonth = new Date(
-    targetYear,
-    targetMonth,
-    0,
-  ).getDate();
+  const lastDayOfTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
 
   const targetDay = Math.min(day, lastDayOfTargetMonth);
 
@@ -131,12 +133,11 @@ async function ensurePaymentIsNotDuplicated(
   dueDate: string,
   ignoredPaymentId?: string,
 ) {
-  const existingPayment =
-    await findActivePaymentBySubscriptionAndBillingMonth(
-      subscriptionId,
-      dueDate,
-      ignoredPaymentId,
-    );
+  const existingPayment = await findActivePaymentBySubscriptionAndBillingMonth(
+    subscriptionId,
+    dueDate,
+    ignoredPaymentId,
+  );
 
   if (existingPayment) {
     throw new AppError(
@@ -170,7 +171,9 @@ export async function getPaymentsByRestaurantIdService(restaurantId: string) {
   return findPaymentsByRestaurantId(restaurantId);
 }
 
-export async function getPaymentsBySubscriptionIdService(subscriptionId: string) {
+export async function getPaymentsBySubscriptionIdService(
+  subscriptionId: string,
+) {
   const subscription = await findSubscriptionById(subscriptionId);
 
   if (!subscription) {
@@ -189,23 +192,10 @@ export async function createPaymentService(data: CreatePaymentData) {
 
   validateInitialPaymentStatus(initialStatus);
 
-  const restaurant = await findRestaurantById(data.restaurant_id);
-
-  if (!restaurant) {
-    throw new AppError("Restaurante não encontrado", 404);
-  }
-
   const subscription = await findSubscriptionById(data.subscription_id);
 
   if (!subscription) {
     throw new AppError("Assinatura não encontrada", 404);
-  }
-
-  if (subscription.restaurant_id !== data.restaurant_id) {
-    throw new AppError(
-      "A assinatura informada não pertence a este restaurante",
-      400,
-    );
   }
 
   if (subscription.status === "CANCELED") {
@@ -215,11 +205,40 @@ export async function createPaymentService(data: CreatePaymentData) {
     );
   }
 
+  let ownerUserId = data.owner_user_id ?? subscription.owner_user_id;
+  let restaurantId: string | null = null;
+
+  if (data.restaurant_id) {
+    const restaurant = await findRestaurantById(data.restaurant_id);
+
+    if (!restaurant) {
+      throw new AppError("Restaurante não encontrado", 404);
+    }
+
+    if (restaurant.owner_user_id !== subscription.owner_user_id) {
+      throw new AppError(
+        "O restaurante informado não pertence ao dono desta assinatura",
+        400,
+      );
+    }
+
+    ownerUserId = restaurant.owner_user_id;
+    restaurantId = restaurant.id;
+  }
+
+  if (ownerUserId !== subscription.owner_user_id) {
+    throw new AppError(
+      "A assinatura informada não pertence a este cliente",
+      400,
+    );
+  }
+
   await ensurePaymentIsNotDuplicated(data.subscription_id, data.due_date);
 
   try {
     const payment = await createPayment({
-      restaurant_id: data.restaurant_id,
+      owner_user_id: ownerUserId,
+      restaurant_id: restaurantId,
       subscription_id: data.subscription_id,
       amount: data.amount,
       due_date: data.due_date,
@@ -262,7 +281,7 @@ export async function createPaymentForRestaurantService(data: {
   const subscription = await findSubscriptionByRestaurantId(data.restaurant_id);
 
   if (!subscription) {
-    throw new AppError("Este restaurante não possui assinatura", 404);
+    throw new AppError("O dono deste restaurante não possui assinatura", 404);
   }
 
   if (subscription.status === "CANCELED") {
@@ -276,7 +295,60 @@ export async function createPaymentForRestaurantService(data: {
 
   try {
     const payment = await createPayment({
-      restaurant_id: data.restaurant_id,
+      owner_user_id: restaurant.owner_user_id,
+      restaurant_id: restaurant.id,
+      subscription_id: subscription.id,
+      amount: data.amount,
+      due_date: data.due_date,
+      status: initialStatus,
+    });
+
+    return ensureCreatedPayment(payment);
+  } catch (error) {
+    if (isDatabaseUniqueError(error)) {
+      throw new AppError(
+        "Já existe uma fatura não cancelada para esta assinatura neste mês",
+        409,
+      );
+    }
+
+    throw error;
+  }
+}
+
+export async function createPaymentForOwnerService(data: {
+  owner_user_id: string;
+  amount: number;
+  due_date: string;
+  status?: PaymentStatus | undefined;
+}) {
+  if (data.amount <= 0) {
+    throw new AppError("Valor da fatura deve ser maior que zero", 400);
+  }
+
+  const initialStatus = data.status ?? "PENDING";
+
+  validateInitialPaymentStatus(initialStatus);
+
+  const subscription = await findSubscriptionByOwnerUserId(data.owner_user_id);
+
+  if (!subscription) {
+    throw new AppError("Este cliente não possui assinatura", 404);
+  }
+
+  if (subscription.status === "CANCELED") {
+    throw new AppError(
+      "Não é possível criar fatura para assinatura cancelada",
+      400,
+    );
+  }
+
+  await ensurePaymentIsNotDuplicated(subscription.id, data.due_date);
+
+  try {
+    const payment = await createPayment({
+      owner_user_id: data.owner_user_id,
+      restaurant_id: null,
       subscription_id: subscription.id,
       amount: data.amount,
       due_date: data.due_date,
@@ -323,8 +395,9 @@ export async function generateMonthlyPaymentsService(
 
       summaries.push({
         subscription_id: subscription.id,
-        restaurant_id: subscription.restaurant_id,
-        restaurant_name: subscription.restaurant_name,
+        owner_user_id: subscription.owner_user_id,
+        owner_name: subscription.owner_name,
+        owner_email: subscription.owner_email,
         due_date: dueDate,
         next_billing_date: nextBillingDate,
         payment: null,
@@ -338,7 +411,8 @@ export async function generateMonthlyPaymentsService(
 
     try {
       const payment = await createPayment({
-        restaurant_id: subscription.restaurant_id,
+        owner_user_id: subscription.owner_user_id,
+        restaurant_id: null,
         subscription_id: subscription.id,
         amount: subscription.monthly_price,
         due_date: dueDate,
@@ -354,8 +428,9 @@ export async function generateMonthlyPaymentsService(
 
       summaries.push({
         subscription_id: subscription.id,
-        restaurant_id: subscription.restaurant_id,
-        restaurant_name: subscription.restaurant_name,
+        owner_user_id: subscription.owner_user_id,
+        owner_name: subscription.owner_name,
+        owner_email: subscription.owner_email,
         due_date: dueDate,
         next_billing_date: nextBillingDate,
         payment: createdPayment,
@@ -370,8 +445,9 @@ export async function generateMonthlyPaymentsService(
 
         summaries.push({
           subscription_id: subscription.id,
-          restaurant_id: subscription.restaurant_id,
-          restaurant_name: subscription.restaurant_name,
+          owner_user_id: subscription.owner_user_id,
+          owner_name: subscription.owner_name,
+          owner_email: subscription.owner_email,
           due_date: dueDate,
           next_billing_date: nextBillingDate,
           payment: null,
@@ -402,7 +478,10 @@ export async function generateMonthlyPaymentsService(
   };
 }
 
-export async function updatePaymentService(id: string, data: UpdatePaymentData) {
+export async function updatePaymentService(
+  id: string,
+  data: UpdatePaymentData,
+) {
   const payment = await findPaymentById(id);
 
   if (!payment) {
