@@ -230,4 +230,61 @@ export async function markPaymentReminderAsFailed(
   );
 
   return result.rows[0];
+
+
+  
+}
+
+export type PaymentReminderWithDetails = PaymentReminder & {
+  owner_name: string | null;
+  owner_email: string | null;
+
+  amount: number | null;
+  due_date: string | null;
+  payment_status: string | null;
+  gateway_provider: string | null;
+  gateway_status: string | null;
+  gateway_invoice_url: string | null;
+  gateway_payment_url: string | null;
+};
+
+export async function listPaymentRemindersRepository() {
+  const result = await pool.query<PaymentReminderWithDetails>(
+    `
+    SELECT
+      payment_reminders.id,
+      payment_reminders.payment_id,
+      payment_reminders.owner_user_id,
+      payment_reminders.channel,
+      payment_reminders.reminder_type,
+      payment_reminders.reminder_date::text AS reminder_date,
+      payment_reminders.recipient,
+      payment_reminders.subject,
+      payment_reminders.message,
+      payment_reminders.sent_at,
+      payment_reminders.status,
+      payment_reminders.error_message,
+      payment_reminders.metadata,
+      payment_reminders.created_at,
+      payment_reminders.updated_at,
+
+      users.name AS owner_name,
+      users.email AS owner_email,
+
+      payments.amount::float AS amount,
+      payments.due_date::text AS due_date,
+      payments.status AS payment_status,
+      payments.gateway_provider,
+      payments.gateway_status,
+      payments.gateway_invoice_url,
+      payments.gateway_payment_url
+
+    FROM payment_reminders
+    LEFT JOIN users ON users.id = payment_reminders.owner_user_id
+    LEFT JOIN payments ON payments.id = payment_reminders.payment_id
+    ORDER BY payment_reminders.created_at DESC
+    `,
+  );
+
+  return result.rows;
 }

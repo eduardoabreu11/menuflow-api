@@ -3,10 +3,13 @@ import {
   listPaymentsReadyForReminders,
   markPaymentReminderAsFailed,
   markPaymentReminderAsSent,
+  listPaymentRemindersRepository,
   type PaymentReadyForReminder,
   type PaymentReminderChannel,
   type PaymentReminderType,
 } from "../repositories/paymentReminderRepository.js";
+
+import { sendEmailService } from "./emailService.js";
 
 const DEFAULT_REMINDER_DAYS_BEFORE_DUE = 10;
 const DEFAULT_REMINDER_DAYS_AFTER_DUE = 30;
@@ -20,6 +23,7 @@ type SendPaymentRemindersOptions = {
 type ReminderMessage = {
   subject: string;
   message: string;
+  html?: string;
 };
 
 function getNumberFromEnv(envName: string, fallback: number) {
@@ -80,13 +84,17 @@ function formatCurrency(value: number) {
 }
 
 function formatDate(date: string) {
-  const cleanDate = date.split("T")[0];
+  const parts = date.split("T");
+  const cleanDate = parts[0];
 
   if (!cleanDate) {
     return date;
   }
 
-  const [year, month, day] = cleanDate.split("-");
+  const dateParts = cleanDate.split("-");
+  const year = dateParts[0];
+  const month = dateParts[1];
+  const day = dateParts[2];
 
   if (!year || !month || !day) {
     return date;
@@ -99,7 +107,9 @@ function getPaymentInvoiceUrl(payment: PaymentReadyForReminder) {
   return payment.gateway_invoice_url ?? payment.gateway_payment_url ?? "";
 }
 
-function getReminderType(payment: PaymentReadyForReminder): PaymentReminderType {
+function getReminderType(
+  payment: PaymentReadyForReminder,
+): PaymentReminderType {
   if (payment.days_until_due > 0) {
     return "BEFORE_DUE";
   }
@@ -126,6 +136,104 @@ function getRecipient(
   return payment.owner_whatsapp;
 }
 
+function escapeHtml(value: string | number) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+export async function listPaymentRemindersService() {
+  return listPaymentRemindersRepository();
+}
+
+function buildEmailHtml(data: {
+  title: string;
+  ownerName: string;
+  description: string;
+  amount: string;
+  dueDate: string;
+  invoiceUrl: string;
+  footerMessage: string;
+}) {
+  const title = escapeHtml(data.title);
+  const ownerName = escapeHtml(data.ownerName);
+  const description = escapeHtml(data.description);
+  const amount = escapeHtml(data.amount);
+  const dueDate = escapeHtml(data.dueDate);
+  const footerMessage = escapeHtml(data.footerMessage);
+
+  const safeInvoiceUrl =
+    data.invoiceUrl && /^https?:\/\//i.test(data.invoiceUrl)
+      ? escapeHtml(data.invoiceUrl)
+      : "";
+
+  const paymentButton = safeInvoiceUrl
+    ? `
+      <a href="${safeInvoiceUrl}" target="_blank"
+        style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:700;font-size:15px;margin-top:16px;">
+        Pagar agora
+      </a>
+    `
+    : "";
+
+  const invoiceLink = safeInvoiceUrl
+    ? `
+      <p style="font-size:13px;color:#64748b;margin-top:18px;word-break:break-all;">
+        Link de pagamento:<br />
+        <a href="${safeInvoiceUrl}" target="_blank" style="color:#16a34a;">${safeInvoiceUrl}</a>
+      </p>
+    `
+    : "";
+
+  return `
+    <div style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
+      <div style="max-width:620px;margin:0 auto;padding:32px 16px;">
+        <div style="background:#ffffff;border-radius:18px;padding:28px;border:1px solid #e2e8f0;">
+          <div style="margin-bottom:24px;">
+            <div style="font-size:22px;font-weight:800;color:#16a34a;">Serviu</div>
+            <div style="font-size:13px;color:#64748b;">Gestão de cardápio digital</div>
+          </div>
+
+          <h1 style="font-size:24px;line-height:1.3;margin:0 0 12px;color:#0f172a;">
+            ${title}
+          </h1>
+
+          <p style="font-size:16px;line-height:1.6;margin:0 0 18px;color:#334155;">
+            Olá, <strong>${ownerName}</strong>.
+          </p>
+
+          <p style="font-size:15px;line-height:1.6;margin:0 0 22px;color:#334155;">
+            ${description}
+          </p>
+
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin:22px 0;">
+            <p style="margin:0 0 8px;font-size:14px;color:#64748b;">Valor</p>
+            <p style="margin:0 0 16px;font-size:24px;font-weight:800;color:#0f172a;">${amount}</p>
+
+            <p style="margin:0 0 8px;font-size:14px;color:#64748b;">Vencimento</p>
+            <p style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">${dueDate}</p>
+          </div>
+
+          ${paymentButton}
+
+          ${invoiceLink}
+
+          <p style="font-size:14px;line-height:1.6;color:#64748b;margin-top:28px;">
+            ${footerMessage}
+          </p>
+        </div>
+
+        <p style="text-align:center;font-size:12px;color:#94a3b8;margin-top:18px;">
+          Este é um aviso automático do Serviu.
+        </p>
+      </div>
+    </div>
+  `;
+}
+
 function buildEmailMessage(
   payment: PaymentReadyForReminder,
   reminderType: PaymentReminderType,
@@ -134,81 +242,137 @@ function buildEmailMessage(
   const amount = formatCurrency(payment.amount);
   const dueDate = formatDate(payment.due_date);
   const ownerName = payment.owner_name || "cliente";
+  const planName = payment.plan_name || "Serviu";
 
   if (reminderType === "BEFORE_DUE") {
+    const title = `Sua mensalidade vence em ${payment.days_until_due} dia(s)`;
+    const description = `Sua mensalidade do plano ${planName} vence em ${payment.days_until_due} dia(s).`;
+    const footerMessage =
+      "Evite atraso para manter seu cardápio digital ativo.";
+
     return {
       subject: `Sua mensalidade Serviu vence em ${payment.days_until_due} dia(s)`,
       message: [
         `Olá, ${ownerName}.`,
         "",
-        `Sua mensalidade do plano ${payment.plan_name} vence em ${payment.days_until_due} dia(s).`,
+        description,
         `Valor: ${amount}`,
         `Vencimento: ${dueDate}`,
         "",
         invoiceUrl ? `Link de pagamento: ${invoiceUrl}` : "",
         "",
-        "Evite atraso para manter seu cardápio digital ativo.",
+        footerMessage,
       ]
         .filter(Boolean)
         .join("\n"),
+      html: buildEmailHtml({
+        title,
+        ownerName,
+        description,
+        amount,
+        dueDate,
+        invoiceUrl,
+        footerMessage,
+      }),
     };
   }
 
   if (reminderType === "DUE_TODAY") {
+    const title = "Sua mensalidade vence hoje";
+    const description = `Sua mensalidade do plano ${planName} vence hoje.`;
+    const footerMessage =
+      "Após a confirmação do pagamento, seu acesso permanece ativo normalmente.";
+
     return {
       subject: "Sua mensalidade Serviu vence hoje",
       message: [
         `Olá, ${ownerName}.`,
         "",
-        `Sua mensalidade do plano ${payment.plan_name} vence hoje.`,
+        description,
         `Valor: ${amount}`,
         `Vencimento: ${dueDate}`,
         "",
         invoiceUrl ? `Link de pagamento: ${invoiceUrl}` : "",
         "",
-        "Após a confirmação do pagamento, seu acesso permanece ativo normalmente.",
+        footerMessage,
       ]
         .filter(Boolean)
         .join("\n"),
+      html: buildEmailHtml({
+        title,
+        ownerName,
+        description,
+        amount,
+        dueDate,
+        invoiceUrl,
+        footerMessage,
+      }),
     };
   }
 
   if (reminderType === "OVERDUE") {
     const daysLate = Math.abs(payment.days_until_due);
+    const title = `Sua mensalidade está vencida há ${daysLate} dia(s)`;
+    const description = `Identificamos que sua mensalidade do plano ${planName} está vencida há ${daysLate} dia(s).`;
+    const footerMessage =
+      "Regularize para evitar o bloqueio do seu cardápio digital.";
 
     return {
       subject: `Sua mensalidade Serviu está vencida há ${daysLate} dia(s)`,
       message: [
         `Olá, ${ownerName}.`,
         "",
-        `Identificamos que sua mensalidade do plano ${payment.plan_name} está vencida há ${daysLate} dia(s).`,
+        description,
         `Valor: ${amount}`,
         `Vencimento: ${dueDate}`,
         "",
         invoiceUrl ? `Link de pagamento: ${invoiceUrl}` : "",
         "",
-        "Regularize para evitar o bloqueio do seu cardápio digital.",
+        footerMessage,
       ]
         .filter(Boolean)
         .join("\n"),
+      html: buildEmailHtml({
+        title,
+        ownerName,
+        description,
+        amount,
+        dueDate,
+        invoiceUrl,
+        footerMessage,
+      }),
     };
   }
+
+  const title = "Seu acesso está bloqueado por atraso";
+  const description = `Sua mensalidade do plano ${planName} está vencida desde ${dueDate}.`;
+  const footerMessage =
+    "Após o pagamento, o sistema libera automaticamente pelo webhook do Asaas.";
 
   return {
     subject: "Seu acesso ao Serviu está bloqueado por atraso",
     message: [
       `Olá, ${ownerName}.`,
       "",
-      `Sua mensalidade do plano ${payment.plan_name} está vencida desde ${dueDate}.`,
+      description,
       `Valor: ${amount}`,
       "",
       "Seu acesso pode ficar bloqueado até a confirmação do pagamento.",
       invoiceUrl ? `Link de pagamento: ${invoiceUrl}` : "",
       "",
-      "Após o pagamento, o sistema libera automaticamente pelo webhook do Asaas.",
+      footerMessage,
     ]
       .filter(Boolean)
       .join("\n"),
+    html: buildEmailHtml({
+      title,
+      ownerName,
+      description,
+      amount,
+      dueDate,
+      invoiceUrl,
+      footerMessage,
+    }),
   };
 }
 
@@ -241,19 +405,36 @@ async function sendReminderMessage(data: {
   recipient: string;
   subject: string;
   message: string;
+  html?: string;
 }) {
-  // Simulação por enquanto.
-  // Depois conectamos aqui no provedor real:
-  // EMAIL: SMTP, Resend, SendGrid, Amazon SES etc.
-  // WHATSAPP: Z-API, Evolution API, Twilio, Meta Cloud API etc.
-  console.log(
-    [
-      `📨 Lembrete ${data.channel} simulado.`,
-      `Para: ${data.recipient}`,
-      `Assunto: ${data.subject}`,
-      `Mensagem: ${data.message}`,
-    ].join("\n"),
-  );
+  if (data.channel === "EMAIL") {
+    const emailData: {
+      to: string;
+      subject: string;
+      message: string;
+      html?: string;
+    } = {
+      to: data.recipient,
+      subject: data.subject,
+      message: data.message,
+    };
+
+    if (data.html) {
+      emailData.html = data.html;
+    }
+
+    await sendEmailService(emailData);
+
+    console.log("📨 Lembrete EMAIL enviado pelo Resend.");
+    console.log("Para:", data.recipient);
+    console.log("Assunto:", data.subject);
+
+    return;
+  }
+
+  console.log("📱 Lembrete WHATSAPP simulado.");
+  console.log("Para:", data.recipient);
+  console.log("Mensagem:", data.message);
 }
 
 function getErrorMessage(error: unknown) {
@@ -362,12 +543,24 @@ export async function sendPaymentRemindersService(
       createdCount++;
 
       try {
-        await sendReminderMessage({
+        const sendData: {
+          channel: PaymentReminderChannel;
+          recipient: string;
+          subject: string;
+          message: string;
+          html?: string;
+        } = {
           channel,
           recipient,
           subject: reminderMessage.subject,
           message: reminderMessage.message,
-        });
+        };
+
+        if (reminderMessage.html) {
+          sendData.html = reminderMessage.html;
+        }
+
+        await sendReminderMessage(sendData);
 
         await markPaymentReminderAsSent(reminder.id);
 

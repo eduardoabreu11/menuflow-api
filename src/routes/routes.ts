@@ -134,6 +134,7 @@ const productController = new ProductController();
 const bannerController = new BannerController();
 const dashboardController = new DashboardController();
 const publicMenuController = new PublicMenuController();
+import { listPaymentRemindersController } from "../controllers/paymentReminderController.js";
 
 /* =========================
    AUTH
@@ -798,6 +799,19 @@ router.get(
     query: restaurantIdQuerySchema,
   }),
   asyncHandler((req, res) => dashboardController.getRecentProducts(req, res)),
+);
+
+
+
+
+
+
+
+router.get(
+  "/payment-reminders",
+  authMiddleware,
+  requireRole("MASTER"),
+  listPaymentRemindersController,
 );
 
 export default router;

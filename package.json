@@ -25,6 +25,7 @@
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.6.0",
     "pg": "^8.21.0",
+    "resend": "^6.17.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
