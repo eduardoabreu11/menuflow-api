@@ -2,21 +2,26 @@ import type { UploadApiResponse } from "cloudinary";
 
 import { cloudinary } from "../config/cloudinary.js";
 
-type UploadImageServiceData = {
+type UploadResourceType = "image" | "video";
+
+type UploadMediaServiceData = {
   buffer: Buffer;
   originalName: string;
   mimeType: string;
   folder?: string;
+  resourceType: UploadResourceType;
 };
 
-export type UploadImageResult = {
+export type UploadMediaResult = {
   url: string;
   secure_url: string;
   public_id: string;
-  width: number;
-  height: number;
+  resource_type: UploadResourceType;
+  width: number | null;
+  height: number | null;
   format: string;
   bytes: number;
+  duration: number | null;
   original_filename: string;
 };
 
@@ -50,14 +55,14 @@ function normalizeFolder(folder?: string) {
     .replace(/^\/|\/$/g, "");
 }
 
-function uploadBufferToCloudinary(data: UploadImageServiceData) {
+function uploadBufferToCloudinary(data: UploadMediaServiceData) {
   const folder = normalizeFolder(data.folder);
 
   return new Promise<UploadApiResponse>((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
-        resource_type: "image",
+        resource_type: data.resourceType,
         use_filename: true,
         unique_filename: true,
         overwrite: false,
@@ -81,26 +86,50 @@ function uploadBufferToCloudinary(data: UploadImageServiceData) {
   });
 }
 
-export async function uploadImageService(data: UploadImageServiceData) {
+async function uploadMediaService(data: UploadMediaServiceData) {
   ensureCloudinaryEnv();
 
-  if (!data.mimeType.startsWith("image/")) {
+  if (data.resourceType === "image" && !data.mimeType.startsWith("image/")) {
     throw new Error("Arquivo inválido. Envie apenas imagens.");
   }
 
-  const uploadedImage = await uploadBufferToCloudinary(data);
+  if (data.resourceType === "video" && !data.mimeType.startsWith("video/")) {
+    throw new Error("Arquivo inválido. Envie apenas vídeos.");
+  }
 
-  const result: UploadImageResult = {
-    url: uploadedImage.url,
-    secure_url: uploadedImage.secure_url,
-    public_id: uploadedImage.public_id,
-    width: uploadedImage.width,
-    height: uploadedImage.height,
-    format: uploadedImage.format,
-    bytes: uploadedImage.bytes,
+  const uploadedMedia = await uploadBufferToCloudinary(data);
+
+  const result: UploadMediaResult = {
+    url: uploadedMedia.url,
+    secure_url: uploadedMedia.secure_url,
+    public_id: uploadedMedia.public_id,
+    resource_type: data.resourceType,
+    width: uploadedMedia.width ?? null,
+    height: uploadedMedia.height ?? null,
+    format: uploadedMedia.format,
+    bytes: uploadedMedia.bytes,
+    duration: uploadedMedia.duration ?? null,
     original_filename:
-      uploadedImage.original_filename || data.originalName || "imagem",
+      uploadedMedia.original_filename || data.originalName || "arquivo",
   };
 
   return result;
+}
+
+export async function uploadImageService(
+  data: Omit<UploadMediaServiceData, "resourceType">,
+) {
+  return uploadMediaService({
+    ...data,
+    resourceType: "image",
+  });
+}
+
+export async function uploadVideoService(
+  data: Omit<UploadMediaServiceData, "resourceType">,
+) {
+  return uploadMediaService({
+    ...data,
+    resourceType: "video",
+  });
 }

@@ -65,7 +65,6 @@ import {
   updatePaymentBodySchema,
   generateMonthlyPaymentsBodySchema,
   createAsaasChargeBodySchema,
-  
 } from "../validations/paymentValidation.js";
 
 import {
@@ -81,7 +80,10 @@ import {
   update as userUpdate,
 } from "../controllers/userController.js";
 
-import { uploadImageController } from "../controllers/uploadController.js";
+import {
+  uploadImageController,
+  uploadVideoController,
+} from "../controllers/uploadController.js";
 
 import {
   index as restaurantIndex,
@@ -133,7 +135,7 @@ import { PublicMenuController } from "../controllers/publicMenuController.js";
 
 const router = Router();
 
-const upload = multer({
+const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024,
@@ -148,15 +150,27 @@ const upload = multer({
   },
 });
 
+const videoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (!file.mimetype.startsWith("video/")) {
+      callback(new Error("Arquivo inválido. Envie apenas vídeos."));
+      return;
+    }
+
+    callback(null, true);
+  },
+});
+
 const categoryController = new CategoryController();
 const productController = new ProductController();
 const bannerController = new BannerController();
 const dashboardController = new DashboardController();
 const publicMenuController = new PublicMenuController();
 import { listPaymentRemindersController } from "../controllers/paymentReminderController.js";
-
-
-
 
 /* =========================
    UPLOADS - MASTER + OWNER
@@ -166,10 +180,17 @@ router.post(
   "/uploads/image",
   authMiddleware,
   requireRole("MASTER", "RESTAURANT_OWNER"),
-  upload.single("image"),
+  imageUpload.single("image"),
   uploadImageController,
 );
 
+router.post(
+  "/uploads/video",
+  authMiddleware,
+  requireRole("MASTER", "RESTAURANT_OWNER"),
+  videoUpload.single("video"),
+  uploadVideoController,
+);
 /* =========================
    AUTH
 ========================= */
@@ -834,12 +855,6 @@ router.get(
   }),
   asyncHandler((req, res) => dashboardController.getRecentProducts(req, res)),
 );
-
-
-
-
-
-
 
 router.get(
   "/payment-reminders",
