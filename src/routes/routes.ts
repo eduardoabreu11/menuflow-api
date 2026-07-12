@@ -5,6 +5,8 @@ import { requireRole } from "../middlewares/requireRole.js";
 import { validateRequest } from "../middlewares/validateRequest.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
+import multer from "multer";
+
 import { handleAsaasWebhook } from "../controllers/asaasWebhookController.js";
 
 import {
@@ -79,6 +81,8 @@ import {
   update as userUpdate,
 } from "../controllers/userController.js";
 
+import { uploadImageController } from "../controllers/uploadController.js";
+
 import {
   index as restaurantIndex,
   show as restaurantShow,
@@ -129,12 +133,42 @@ import { PublicMenuController } from "../controllers/publicMenuController.js";
 
 const router = Router();
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (!file.mimetype.startsWith("image/")) {
+      callback(new Error("Arquivo inválido. Envie apenas imagens."));
+      return;
+    }
+
+    callback(null, true);
+  },
+});
+
 const categoryController = new CategoryController();
 const productController = new ProductController();
 const bannerController = new BannerController();
 const dashboardController = new DashboardController();
 const publicMenuController = new PublicMenuController();
 import { listPaymentRemindersController } from "../controllers/paymentReminderController.js";
+
+
+
+
+/* =========================
+   UPLOADS - MASTER + OWNER
+========================= */
+
+router.post(
+  "/uploads/image",
+  authMiddleware,
+  requireRole("MASTER", "RESTAURANT_OWNER"),
+  upload.single("image"),
+  uploadImageController,
+);
 
 /* =========================
    AUTH
