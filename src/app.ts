@@ -15,6 +15,8 @@ import { notFoundHandler } from "./middlewares/notFoundHandler.js";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 const allowedOrigins = [
   "http://localhost:3000",
   "https://serviu-web.vercel.app",
