@@ -16,8 +16,10 @@ import { notFoundHandler } from "./middlewares/notFoundHandler.js";
 const app = express();
 
 const allowedOrigins = [
-  process.env.FRONTEND_URL || "http://localhost:3000",
-];
+  "http://localhost:3000",
+  "https://serviu-web.vercel.app",
+  process.env.FRONTEND_URL?.trim().replace(/\/$/, ""),
+].filter((origin): origin is string => Boolean(origin));
 
 app.disable("x-powered-by");
 
