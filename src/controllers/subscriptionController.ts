@@ -6,6 +6,7 @@ import {
   cancelSubscriptionService,
   createSubscriptionService,
   getSubscriptionByIdService,
+  getSubscriptionByOwnerUserIdService,
   getSubscriptionByRestaurantIdService,
   listSubscriptionsService,
   updateSubscriptionService,
@@ -14,6 +15,7 @@ import {
 import {
   createSubscriptionBodySchema,
   subscriptionIdParamsSchema,
+  subscriptionOwnerUserIdParamsSchema,
   subscriptionRestaurantIdParamsSchema,
   updateSubscriptionBodySchema,
 } from "../validations/subscriptionValidation.js";
@@ -31,6 +33,19 @@ export const getSubscriptionByIdController = asyncHandler(
     const { id } = subscriptionIdParamsSchema.parse(req.params);
 
     const subscription = await getSubscriptionByIdService(id);
+
+    return res.status(200).json(subscription);
+  },
+);
+
+export const getSubscriptionByOwnerUserIdController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { owner_user_id } = subscriptionOwnerUserIdParamsSchema.parse(
+      req.params,
+    );
+
+    const subscription =
+      await getSubscriptionByOwnerUserIdService(owner_user_id);
 
     return res.status(200).json(subscription);
   },
@@ -54,10 +69,19 @@ export const createSubscriptionController = asyncHandler(
     const data = createSubscriptionBodySchema.parse(req.body);
 
     const subscriptionData: Parameters<typeof createSubscriptionService>[0] = {
-      restaurant_id: data.restaurant_id,
       monthly_price: data.monthly_price,
       next_billing_date: data.next_billing_date,
     };
+
+    if (data.owner_user_id !== undefined) {
+      subscriptionData.owner_user_id = data.owner_user_id;
+    }
+
+    const restaurantId = data.restaurant_id ?? undefined;
+
+    if (restaurantId !== undefined) {
+      subscriptionData.restaurant_id = restaurantId;
+    }
 
     if (data.status !== undefined) {
       subscriptionData.status = data.status;
@@ -82,7 +106,8 @@ export const updateSubscriptionController = asyncHandler(
     const { id } = subscriptionIdParamsSchema.parse(req.params);
     const data = updateSubscriptionBodySchema.parse(req.body);
 
-    const subscriptionData: Parameters<typeof updateSubscriptionService>[1] = {};
+    const subscriptionData: Parameters<typeof updateSubscriptionService>[1] =
+      {};
 
     if (data.status !== undefined) {
       subscriptionData.status = data.status;
