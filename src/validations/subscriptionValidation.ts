@@ -17,6 +17,12 @@ export const subscriptionIdParamsSchema = z
   })
   .strict();
 
+export const subscriptionOwnerUserIdParamsSchema = z
+  .object({
+    owner_user_id: z.string().uuid("ID do dono inválido"),
+  })
+  .strict();
+
 export const subscriptionRestaurantIdParamsSchema = z
   .object({
     restaurant_id: z.string().uuid("ID do restaurante inválido"),
@@ -25,7 +31,15 @@ export const subscriptionRestaurantIdParamsSchema = z
 
 export const createSubscriptionBodySchema = z
   .object({
-    restaurant_id: z.string().uuid("ID do restaurante inválido"),
+    owner_user_id: z.string().uuid("ID do dono inválido").optional(),
+
+    // Mantido temporariamente para compatibilidade com telas antigas.
+    // A assinatura oficial é por owner_user_id.
+    restaurant_id: z
+      .string()
+      .uuid("ID do restaurante inválido")
+      .nullable()
+      .optional(),
 
     status: subscriptionStatusSchema.optional(),
 
@@ -44,7 +58,11 @@ export const createSubscriptionBodySchema = z
 
     next_billing_date: dateSchema,
   })
-  .strict();
+  .strict()
+  .refine((data) => Boolean(data.owner_user_id || data.restaurant_id), {
+    message: "Informe o ID do dono da conta",
+    path: ["owner_user_id"],
+  });
 
 export const updateSubscriptionBodySchema = z
   .object({
